@@ -9,7 +9,8 @@ namespace winrt::FlightSimHubApp::implementation {
 struct EnvironmentPage : EnvironmentPageT<EnvironmentPage> {
   EnvironmentPage();
 
-  void OnRescanClick(
+  // Detection probes the filesystem and registry; keep them off the UI thread
+  fire_and_forget OnRescanClick(
     Windows::Foundation::IInspectable const&,
     Microsoft::UI::Xaml::RoutedEventArgs const&);
 
@@ -19,7 +20,6 @@ struct EnvironmentPage : EnvironmentPageT<EnvironmentPage> {
   fire_and_forget InstallClicked(std::string appId);
   void LocateClicked(const std::string& appId);
   void ClearOverrideClicked(const std::string& appId);
-  void ShowError(const std::string& message);
 };
 
 }  // namespace winrt::FlightSimHubApp::implementation

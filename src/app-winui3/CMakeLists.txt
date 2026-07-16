@@ -16,15 +16,16 @@ add_executable(
   LaunchersPage.idl LaunchersPage.xaml LaunchersPage.xaml.cpp LaunchersPage.xaml.h
   Main.cpp
   MainWindow.idl MainWindow.xaml MainWindow.xaml.cpp MainWindow.xaml.h
+  UiHelpers.h
 )
 
 include(winui3-boilerplate.cmake)
 
+# target_link_windows_app_sdk already adds the Generated Files include dir
 target_include_directories(
   FSHub-App
   PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}"
-  "${CMAKE_CURRENT_BINARY_DIR}/Generated Files"
 )
 
 set_property(

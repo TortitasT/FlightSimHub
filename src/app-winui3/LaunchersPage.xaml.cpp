@@ -6,12 +6,14 @@
 #endif
 
 #include "Globals.h"
+#include "UiHelpers.h"
 
 #include <FSHub/LauncherEngine.hpp>
 #include <FSHub/ShortcutWriter.hpp>
 
 #include <algorithm>
 #include <cmath>
+#include <thread>
 
 using namespace winrt;
 using namespace winrt::Microsoft::UI::Xaml;
@@ -69,7 +71,6 @@ void LaunchersPage::OnNewLauncherClick(
 
 UIElement LaunchersPage::BuildItemRow(
   const std::string& launcherId, size_t itemIndex) {
-  auto& model = AppModel::Get();
   const auto* launcher = LauncherById(launcherId);
   const auto& item = launcher->items.at(itemIndex);
 
@@ -82,8 +83,7 @@ UIElement LaunchersPage::BuildItemRow(
   const auto apps = LaunchableApps();
   int selected = -1;
   for (size_t i = 0; i < apps.size(); ++i) {
-    appPicker.Items().Append(box_value(to_hstring(
-      apps[i]->name + (apps[i]->kind == AppKind::Sim ? "  (sim)" : ""))));
+    appPicker.Items().Append(box_value(Ui::AppDisplayName(*apps[i])));
     if (apps[i]->id == item.appId) {
       selected = static_cast<int>(i);
     }
@@ -96,16 +96,26 @@ UIElement LaunchersPage::BuildItemRow(
   }
   appPicker.SelectedIndex(selected);
   appPicker.SelectionChanged(
-    [launcherId, itemIndex, apps](auto&& sender, auto&&) {
+    [this, launcherId, itemIndex, apps](auto&& sender, auto&&) {
       const auto index
         = sender.template as<ComboBox>().SelectedIndex();
       if (index < 0 || index >= static_cast<int>(apps.size())) {
         return;
       }
-      if (auto* launcher = LauncherById(launcherId)) {
-        launcher->items.at(itemIndex).appId = apps[index]->id;
-        AppModel::Get().Save();
+      auto* launcher = LauncherById(launcherId);
+      if (!launcher || itemIndex >= launcher->items.size()) {
+        return;
       }
+      launcher->items.at(itemIndex).appId = apps[index]->id;
+      AppModel::Get().Save();
+      // Deferred: rebuilding synchronously would tear down this ComboBox
+      // while its own event is still being raised. The rebuild drops the
+      // stale "(not found)" placeholder entry.
+      DispatcherQueue().TryEnqueue([weak = get_weak()] {
+        if (auto self = weak.get()) {
+          self->RebuildList();
+        }
+      });
     });
   row.Children().Append(appPicker);
 
@@ -113,28 +123,36 @@ UIElement LaunchersPage::BuildItemRow(
   args.PlaceholderText(L"Arguments");
   args.MinWidth(160);
   args.Text(to_hstring(item.args));
-  args.TextChanged([launcherId, itemIndex](auto&& sender, auto&&) {
-    if (auto* launcher = LauncherById(launcherId)) {
-      launcher->items.at(itemIndex).args
-        = to_string(sender.template as<TextBox>().Text());
+  // LostFocus, not TextChanged: persisting per keystroke writes the whole
+  // settings file for every character typed
+  args.LostFocus([launcherId, itemIndex](auto&& sender, auto&&) {
+    auto* launcher = LauncherById(launcherId);
+    if (!launcher || itemIndex >= launcher->items.size()) {
+      return;
+    }
+    auto& item = launcher->items.at(itemIndex);
+    const auto text = to_string(sender.template as<TextBox>().Text());
+    if (text != item.args) {
+      item.args = text;
       AppModel::Get().Save();
     }
   });
   row.Children().Append(args);
 
   NumberBox delay;
-  delay.Header(box_value(L""));
   delay.PlaceholderText(L"Delay (s)");
   delay.Minimum(0);
   delay.Maximum(600);
   delay.Value(item.delayAfterSeconds);
   delay.ValueChanged([launcherId, itemIndex](auto&&, auto&& eventArgs) {
-    if (auto* launcher = LauncherById(launcherId)) {
-      const auto value = eventArgs.NewValue();
-      launcher->items.at(itemIndex).delayAfterSeconds
-        = std::isnan(value) ? 0 : static_cast<int>(value);
-      AppModel::Get().Save();
+    auto* launcher = LauncherById(launcherId);
+    if (!launcher || itemIndex >= launcher->items.size()) {
+      return;
     }
+    const auto value = eventArgs.NewValue();
+    launcher->items.at(itemIndex).delayAfterSeconds
+      = std::isnan(value) ? 0 : static_cast<int>(value);
+    AppModel::Get().Save();
   });
   row.Children().Append(delay);
 
@@ -164,11 +182,13 @@ UIElement LaunchersPage::BuildItemRow(
   Button remove;
   remove.Content(box_value(L"Remove"));
   remove.Click([this, launcherId, itemIndex](auto&&, auto&&) {
-    if (auto* launcher = LauncherById(launcherId)) {
-      launcher->items.erase(launcher->items.begin() + itemIndex);
-      AppModel::Get().Save();
-      RebuildList();
+    auto* launcher = LauncherById(launcherId);
+    if (!launcher || itemIndex >= launcher->items.size()) {
+      return;
     }
+    launcher->items.erase(launcher->items.begin() + itemIndex);
+    AppModel::Get().Save();
+    RebuildList();
   });
   row.Children().Append(remove);
 
@@ -177,6 +197,7 @@ UIElement LaunchersPage::BuildItemRow(
 
 UIElement LaunchersPage::BuildCard(const std::string& launcherId) {
   const auto* launcher = LauncherById(launcherId);
+  const bool running = mRunning.contains(launcherId);
 
   StackPanel body;
   body.Spacing(8);
@@ -186,10 +207,24 @@ UIElement LaunchersPage::BuildCard(const std::string& launcherId) {
   name.MaxWidth(320);
   name.HorizontalAlignment(HorizontalAlignment::Left);
   name.Text(to_hstring(launcher->name));
-  name.TextChanged([launcherId](auto&& sender, auto&&) {
-    if (auto* launcher = LauncherById(launcherId)) {
-      launcher->name = to_string(sender.template as<TextBox>().Text());
-      AppModel::Get().Save();
+  name.LostFocus([launcherId](auto&& sender, auto&&) {
+    auto* launcher = LauncherById(launcherId);
+    if (!launcher) {
+      return;
+    }
+    const auto newName = to_string(sender.template as<TextBox>().Text());
+    if (newName == launcher->name || newName.empty()) {
+      return;
+    }
+    // Shortcuts are keyed by name; migrate an existing one across the rename
+    const bool hadShortcut = StartMenuShortcutExists(launcher->name);
+    if (hadShortcut) {
+      RemoveStartMenuShortcut(launcher->name);
+    }
+    launcher->name = newName;
+    AppModel::Get().Save();
+    if (hadShortcut) {
+      CreateStartMenuShortcut(launcher->name, launcher->id);
     }
   });
   body.Children().Append(name);
@@ -211,7 +246,8 @@ UIElement LaunchersPage::BuildCard(const std::string& launcherId) {
       AppModel::Get().Save();
       RebuildList();
     } else {
-      ShowError(
+      Ui::ShowError(
+        ErrorBar(),
         "No located apps to add; install or locate apps in the Environment "
         "tab first");
     }
@@ -236,12 +272,10 @@ UIElement LaunchersPage::BuildCard(const std::string& launcherId) {
   actions.Spacing(8);
 
   Button launch;
-  launch.Content(box_value(L"Launch"));
-  launch.Style(
-    Application::Current()
-      .Resources()
-      .Lookup(box_value(L"AccentButtonStyle"))
-      .as<Microsoft::UI::Xaml::Style>());
+  launch.Content(box_value(hstring {running ? L"Running..." : L"Launch"}));
+  launch.IsEnabled(!running);
+  launch.Style(Ui::LookupResource<Microsoft::UI::Xaml::Style>(
+    L"AccentButtonStyle"));
   launch.Click(
     [this, launcherId](auto&&, auto&&) { LaunchClicked(launcherId); });
   actions.Children().Append(launch);
@@ -253,7 +287,7 @@ UIElement LaunchersPage::BuildCard(const std::string& launcherId) {
       if (const auto result
           = CreateStartMenuShortcut(launcher->name, launcher->id);
           !result) {
-        ShowError(result.error());
+        Ui::ShowError(ErrorBar(), result.error());
       }
     }
   });
@@ -276,50 +310,55 @@ UIElement LaunchersPage::BuildCard(const std::string& launcherId) {
 
   body.Children().Append(actions);
 
-  Border card;
-  card.Padding({12, 12, 12, 12});
-  card.CornerRadius({4, 4, 4, 4});
-  card.Background(
-    Application::Current()
-      .Resources()
-      .Lookup(box_value(L"CardBackgroundFillColorDefaultBrush"))
-      .as<Microsoft::UI::Xaml::Media::Brush>());
-  card.Child(body);
-  return card;
+  return Ui::MakeCard(body);
 }
 
-fire_and_forget LaunchersPage::LaunchClicked(std::string launcherId) {
-  auto lifetime = get_strong();
-  auto& model = AppModel::Get();
-
-  ErrorBar().IsOpen(false);
+void LaunchersPage::LaunchClicked(const std::string& launcherId) {
+  if (mRunning.contains(launcherId)) {
+    return;
+  }
   const auto* launcher = LauncherById(launcherId);
   if (!launcher) {
-    co_return;
+    return;
   }
+  ErrorBar().IsOpen(false);
+  mRunning.insert(launcherId);
+  RebuildList();
 
-  model.Rescan();
-  const auto plan = BuildLaunchPlan(*launcher, model.catalog, model.states);
-  if (!plan) {
-    ShowError(plan.error());
-    co_return;
-  }
-  const bool closeCompanions = launcher->closeCompanionsOnSimExit;
-
+  auto& model = AppModel::Get();
+  // Copies: the thread must not touch UI-owned state, and it outlives
+  // any edit the user makes while the sim runs
+  const Launcher snapshot = *launcher;
+  const auto overrides = model.settings.appOverrides;
   const auto queue = DispatcherQueue();
-  co_await winrt::resume_background();
-  // Blocks until the sim exits when cleanup is enabled
-  const auto result = LauncherEngine::Run(*plan, closeCompanions);
+  auto weak = get_weak();
 
-  co_await wil::resume_foreground(queue);
-  if (!result) {
-    ShowError(result.error());
-  }
-}
+  // A dedicated thread, not the WinRT thread pool: with cleanup enabled
+  // this blocks until the sim exits, which can be hours
+  std::thread([snapshot, overrides, queue, weak] {
+    auto& model = AppModel::Get();
+    const auto states = model.ComputeStates(overrides);
 
-void LaunchersPage::ShowError(const std::string& message) {
-  ErrorBar().Message(to_hstring(message));
-  ErrorBar().IsOpen(true);
+    std::optional<std::string> error;
+    const auto plan = BuildLaunchPlan(snapshot, model.catalog, states);
+    if (!plan) {
+      error = plan.error();
+    } else if (const auto result = LauncherEngine::Run(
+                 *plan, snapshot.closeCompanionsOnSimExit);
+               !result) {
+      error = result.error();
+    }
+
+    queue.TryEnqueue([weak, error, id = snapshot.id] {
+      if (auto self = weak.get()) {
+        self->mRunning.erase(id);
+        if (error) {
+          Ui::ShowError(self->ErrorBar(), *error);
+        }
+        self->RebuildList();
+      }
+    });
+  }).detach();
 }
 
 }  // namespace winrt::FlightSimHubApp::implementation

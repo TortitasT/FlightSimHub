@@ -2,11 +2,30 @@
 
 #include "Globals.h"
 
+#include <FSHub/Strings.hpp>
+
 #include <nlohmann/json.hpp>
+
+#include <wil/win32_helpers.h>
 
 #include <fstream>
 
 namespace FSHub {
+
+namespace {
+
+std::optional<std::filesystem::path> OverridePathFor(
+  const std::map<std::string, std::string>& overrides,
+  const std::string& appId) {
+  const auto it = overrides.find(appId);
+  if (it == overrides.end()) {
+    return std::nullopt;
+  }
+  // Stored as UTF-8; path's narrow constructor would decode it as ACP
+  return std::filesystem::path(Widen(it->second));
+}
+
+}  // namespace
 
 AppModel& AppModel::Get() {
   static AppModel instance;
@@ -14,8 +33,7 @@ AppModel& AppModel::Get() {
 }
 
 void AppModel::Load() {
-  wchar_t selfPath[MAX_PATH] {};
-  GetModuleFileNameW(nullptr, selfPath, MAX_PATH);
+  const auto selfPath = wil::GetModuleFileNameW<std::wstring>(nullptr);
   const auto catalogFile
     = std::filesystem::path(selfPath).parent_path() / "catalog.json";
 
@@ -39,18 +57,21 @@ void AppModel::Load() {
 
 std::optional<std::filesystem::path> AppModel::OverrideFor(
   const std::string& appId) const {
-  const auto it = settings.appOverrides.find(appId);
-  if (it == settings.appOverrides.end()) {
-    return std::nullopt;
+  return OverridePathFor(settings.appOverrides, appId);
+}
+
+std::map<std::string, InstallState> AppModel::ComputeStates(
+  const std::map<std::string, std::string>& overrides) const {
+  const Detector detector(probe, managedAppsDir);
+  std::map<std::string, InstallState> result;
+  for (const auto& app: catalog) {
+    result[app.id] = detector.Resolve(app, OverridePathFor(overrides, app.id));
   }
-  return std::filesystem::path(it->second);
+  return result;
 }
 
 void AppModel::Rescan() {
-  const Detector detector(probe, managedAppsDir);
-  for (const auto& app: catalog) {
-    states[app.id] = detector.Resolve(app, OverrideFor(app.id));
-  }
+  states = ComputeStates(settings.appOverrides);
 }
 
 void AppModel::Rescan(const std::string& appId) {
@@ -63,7 +84,15 @@ void AppModel::Rescan(const std::string& appId) {
 }
 
 void AppModel::Save() const {
-  SaveSettings(settingsFile, settings);
+  try {
+    SaveSettings(settingsFile, settings);
+  } catch (const std::exception& e) {
+    MessageBoxW(
+      nullptr,
+      winrt::to_hstring(e.what()).c_str(),
+      L"FlightSimHub",
+      MB_OK | MB_ICONERROR);
+  }
 }
 
 }  // namespace FSHub

@@ -2,6 +2,7 @@
 
 #include "LaunchersPage.xaml.g.h"
 
+#include <set>
 #include <string>
 
 namespace winrt::FlightSimHubApp::implementation {
@@ -18,8 +19,10 @@ struct LaunchersPage : LaunchersPageT<LaunchersPage> {
   Microsoft::UI::Xaml::UIElement BuildCard(const std::string& launcherId);
   Microsoft::UI::Xaml::UIElement BuildItemRow(
     const std::string& launcherId, size_t itemIndex);
-  fire_and_forget LaunchClicked(std::string launcherId);
-  void ShowError(const std::string& message);
+  void LaunchClicked(const std::string& launcherId);
+
+  // Launcher ids currently running; their Launch buttons stay disabled
+  std::set<std::string> mRunning;
 };
 
 }  // namespace winrt::FlightSimHubApp::implementation

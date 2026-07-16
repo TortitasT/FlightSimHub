@@ -7,8 +7,10 @@
 
 #include "FilePicker.h"
 #include "Globals.h"
+#include "UiHelpers.h"
 
 #include <FSHub/Installer.hpp>
+#include <FSHub/Strings.hpp>
 
 #include <algorithm>
 
@@ -44,7 +46,8 @@ EnvironmentPage::EnvironmentPage() {
   InitializeComponent();
   auto& model = AppModel::Get();
   if (model.settingsWereCorrupt) {
-    ShowError(
+    Ui::ShowError(
+      ErrorBar(),
       "The settings file was corrupt and has been reset; the old file was "
       "kept as settings.json.corrupt");
     model.settingsWereCorrupt = false;
@@ -70,13 +73,9 @@ UIElement EnvironmentPage::BuildRow(const std::string& appId) {
   info.VerticalAlignment(VerticalAlignment::Center);
 
   TextBlock name;
-  name.Text(to_hstring(
-    app.name + (app.kind == AppKind::Sim ? "  (sim)" : "")));
+  name.Text(Ui::AppDisplayName(app));
   name.Style(
-    Application::Current()
-      .Resources()
-      .Lookup(box_value(L"BodyStrongTextBlockStyle"))
-      .as<Microsoft::UI::Xaml::Style>());
+    Ui::LookupResource<Microsoft::UI::Xaml::Style>(L"BodyStrongTextBlockStyle"));
   info.Children().Append(name);
 
   TextBlock status;
@@ -126,13 +125,6 @@ UIElement EnvironmentPage::BuildRow(const std::string& appId) {
   }
 
   Grid row;
-  row.Padding({12, 8, 12, 8});
-  row.CornerRadius({4, 4, 4, 4});
-  row.Background(
-    Application::Current()
-      .Resources()
-      .Lookup(box_value(L"CardBackgroundFillColorDefaultBrush"))
-      .as<Microsoft::UI::Xaml::Media::Brush>());
   ColumnDefinition infoColumn;
   infoColumn.Width({1, GridUnitType::Star});
   ColumnDefinition buttonColumn;
@@ -143,12 +135,23 @@ UIElement EnvironmentPage::BuildRow(const std::string& appId) {
   Grid::SetColumn(buttons, 1);
   row.Children().Append(info);
   row.Children().Append(buttons);
-  return row;
+  auto card = Ui::MakeCard(row);
+  card.Padding({12, 8, 12, 8});
+  return card;
 }
 
-void EnvironmentPage::OnRescanClick(
+fire_and_forget EnvironmentPage::OnRescanClick(
   IInspectable const&, RoutedEventArgs const&) {
-  AppModel::Get().Rescan();
+  auto lifetime = get_strong();
+  auto& model = AppModel::Get();
+  const auto overrides = model.settings.appOverrides;
+  const auto queue = DispatcherQueue();
+
+  co_await winrt::resume_background();
+  auto states = model.ComputeStates(overrides);
+
+  co_await wil::resume_foreground(queue);
+  model.states = std::move(states);
   RebuildList();
 }
 
@@ -169,7 +172,7 @@ fire_and_forget EnvironmentPage::InstallClicked(std::string appId) {
 
   co_await wil::resume_foreground(queue);
   if (!result) {
-    ShowError(app.name + ": " + result.error());
+    Ui::ShowError(ErrorBar(), app.name + ": " + result.error());
   }
   model.Rescan(appId);
   RebuildList();
@@ -181,7 +184,8 @@ void EnvironmentPage::LocateClicked(const std::string& appId) {
     return;
   }
   auto& model = AppModel::Get();
-  model.settings.appOverrides[appId] = picked->string();
+  // UTF-8 in settings.json; path::string() would encode as ACP
+  model.settings.appOverrides[appId] = Narrow(picked->wstring());
   model.Save();
   model.Rescan(appId);
   RebuildList();
@@ -193,11 +197,6 @@ void EnvironmentPage::ClearOverrideClicked(const std::string& appId) {
   model.Save();
   model.Rescan(appId);
   RebuildList();
-}
-
-void EnvironmentPage::ShowError(const std::string& message) {
-  ErrorBar().Message(to_hstring(message));
-  ErrorBar().IsOpen(true);
 }
 
 }  // namespace winrt::FlightSimHubApp::implementation

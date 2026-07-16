@@ -1,10 +1,5 @@
 cmake_minimum_required(VERSION 3.25..4.0 FATAL_ERROR)
 
-# Require that link targets exist
-cmake_policy(SET CMP0079 NEW)
-# Enable CMAKE_MSVC_RUNTIME_LIBRARY
-cmake_policy(SET CMP0091 NEW)
-
 # Win10 19H1 baseline, same as FreeOpenKneeboard
 set(NTDDI_VERSION "NTDDI_WIN10_19H1")
 set(WIN32_WINNT "_WIN32_WINNT_WIN10")

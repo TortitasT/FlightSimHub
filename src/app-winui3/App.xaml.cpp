@@ -2,6 +2,7 @@
 
 #include "App.xaml.h"
 
+#include "Globals.h"
 #include "MainWindow.xaml.h"
 
 using namespace winrt;
@@ -24,6 +25,17 @@ App::App() {
 }
 
 void App::OnLaunched(LaunchActivatedEventArgs const&) {
+  try {
+    FSHub::AppModel::Get().Load();
+  } catch (const std::exception& e) {
+    MessageBoxW(
+      nullptr,
+      to_hstring(e.what()).c_str(),
+      L"FlightSimHub",
+      MB_OK | MB_ICONERROR);
+    Exit();
+    return;
+  }
   mWindow = make<MainWindow>();
   mWindow.Activate();
 }

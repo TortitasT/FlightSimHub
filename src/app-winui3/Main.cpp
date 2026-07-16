@@ -11,6 +11,11 @@
 
 namespace {
 
+int Fail(const std::wstring& message) {
+  MessageBoxW(nullptr, message.c_str(), L"FlightSimHub", MB_OK | MB_ICONERROR);
+  return EXIT_FAILURE;
+}
+
 // Exit code doubles as the error signal for shell-launched shortcuts
 int RunHeadlessLauncher(const std::wstring& launcherId) {
   using namespace FSHub;
@@ -24,44 +29,25 @@ int RunHeadlessLauncher(const std::wstring& launcherId) {
       model.settings.launchers,
       [&](const auto& l) { return l.id == id; });
     if (launcher == model.settings.launchers.end()) {
-      MessageBoxW(
-        nullptr,
+      return Fail(
         L"This launcher no longer exists; recreate its shortcut from "
-        L"FlightSimHub.",
-        L"FlightSimHub",
-        MB_OK | MB_ICONERROR);
-      return EXIT_FAILURE;
+        L"FlightSimHub.");
     }
 
     const auto plan
       = BuildLaunchPlan(*launcher, model.catalog, model.states);
     if (!plan) {
-      MessageBoxW(
-        nullptr,
-        winrt::to_hstring(plan.error()).c_str(),
-        L"FlightSimHub",
-        MB_OK | MB_ICONERROR);
-      return EXIT_FAILURE;
+      return Fail(std::wstring {winrt::to_hstring(plan.error())});
     }
 
     const auto result
       = LauncherEngine::Run(*plan, launcher->closeCompanionsOnSimExit);
     if (!result) {
-      MessageBoxW(
-        nullptr,
-        winrt::to_hstring(result.error()).c_str(),
-        L"FlightSimHub",
-        MB_OK | MB_ICONERROR);
-      return EXIT_FAILURE;
+      return Fail(std::wstring {winrt::to_hstring(result.error())});
     }
     return EXIT_SUCCESS;
   } catch (const std::exception& e) {
-    MessageBoxW(
-      nullptr,
-      winrt::to_hstring(e.what()).c_str(),
-      L"FlightSimHub",
-      MB_OK | MB_ICONERROR);
-    return EXIT_FAILURE;
+    return Fail(std::wstring {winrt::to_hstring(e.what())});
   }
 }
 

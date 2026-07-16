@@ -28,8 +28,17 @@ struct AppModel {
   // Loads catalog.json from the exe directory and settings from
   // %LOCALAPPDATA%; throws std::runtime_error if the catalog is unusable.
   void Load();
+
+  // Runs the full detection sweep (registry, steam, filesystem probes).
+  // Overrides are passed by copy so this can run on a background thread
+  // while the UI keeps mutating settings.
+  std::map<std::string, InstallState> ComputeStates(
+    const std::map<std::string, std::string>& overrides) const;
+
   void Rescan();
   void Rescan(const std::string& appId);
+
+  // Shows an error dialog on failure rather than throwing out of UI handlers
   void Save() const;
 
   std::optional<std::filesystem::path> OverrideFor(
