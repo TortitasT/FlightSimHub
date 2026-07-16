@@ -12,16 +12,21 @@ std::vector<std::filesystem::path> ParseSteamLibraryFolders(
     vdfText.data(), vdfText.data() + vdfText.size(), pattern);
   for (auto it = begin; it != std::cregex_iterator(); ++it) {
     std::string raw = (*it)[1].str();
-    // VDF escapes backslashes
-    std::string unescaped;
-    unescaped.reserve(raw.size());
+    // VDF escapes backslashes; normalize to forward slashes so behavior
+    // does not depend on the host's path separator rules
+    std::string normalized;
+    normalized.reserve(raw.size());
     for (size_t i = 0; i < raw.size(); ++i) {
-      if (raw[i] == '\\' && i + 1 < raw.size() && raw[i + 1] == '\\') {
-        ++i;
+      if (raw[i] == '\\') {
+        if (i + 1 < raw.size() && raw[i + 1] == '\\') {
+          ++i;
+        }
+        normalized.push_back('/');
+        continue;
       }
-      unescaped.push_back(raw[i]);
+      normalized.push_back(raw[i]);
     }
-    paths.emplace_back(std::filesystem::path(unescaped).generic_string());
+    paths.emplace_back(normalized);
   }
   return paths;
 }
