@@ -27,6 +27,8 @@ class IProbe {
   virtual std::string ExpandEnvironmentVars(const std::string&) const = 0;
   virtual std::optional<std::string> ReadTextFile(
     const std::filesystem::path&) const = 0;
+  virtual std::vector<std::filesystem::path> ListSubdirectories(
+    const std::filesystem::path&) const = 0;
 };
 
 std::vector<std::filesystem::path> ParseSteamLibraryFolders(
@@ -43,10 +45,12 @@ class Detector {
     const std::optional<std::filesystem::path>& userOverride) const;
 
  private:
-  std::vector<std::filesystem::path> SteamCommonDirs() const;
+  const std::vector<std::filesystem::path>& SteamCommonDirs() const;
 
   const IProbe& mProbe;
   std::filesystem::path mManagedAppsDir;
+  // Steam config is identical for every app in a scan; resolve it once
+  mutable std::optional<std::vector<std::filesystem::path>> mSteamCommonDirs;
 };
 
 }  // namespace FSHub

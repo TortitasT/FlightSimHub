@@ -11,6 +11,8 @@ namespace FSHub {
 std::expected<void, std::string> CreateStartMenuShortcut(
   const std::string& launcherName, const std::string& launcherId);
 
+bool StartMenuShortcutExists(const std::string& launcherName);
+
 std::expected<void, std::string> RemoveStartMenuShortcut(
   const std::string& launcherName);
 

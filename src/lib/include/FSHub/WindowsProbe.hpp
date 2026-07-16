@@ -15,6 +15,8 @@ class WindowsProbe final : public IProbe {
   std::string ExpandEnvironmentVars(const std::string&) const override;
   std::optional<std::string> ReadTextFile(
     const std::filesystem::path&) const override;
+  std::vector<std::filesystem::path> ListSubdirectories(
+    const std::filesystem::path&) const override;
 };
 
 }  // namespace FSHub

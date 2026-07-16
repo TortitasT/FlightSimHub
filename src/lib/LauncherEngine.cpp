@@ -55,6 +55,8 @@ std::expected<std::vector<LaunchPlanItem>, std::string> BuildLaunchPlan(
 
 #ifdef _WIN32
 
+#include <FSHub/Strings.hpp>
+
 #include <windows.h>
 
 #include <wil/resource.h>
@@ -74,8 +76,7 @@ std::expected<LaunchedProcess, std::string> StartProcess(
   // CreateProcessW requires a mutable command line buffer
   std::wstring commandLine = L"\"" + item.exe.wstring() + L"\"";
   if (!item.args.empty()) {
-    commandLine += L" ";
-    commandLine.append(item.args.begin(), item.args.end());
+    commandLine += L" " + Widen(item.args);
   }
 
   const auto workingDir = item.exe.parent_path().wstring();

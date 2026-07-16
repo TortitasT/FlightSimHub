@@ -11,6 +11,7 @@ add_library(
   LauncherEngine.cpp
   Settings.cpp
   ShortcutWriter.cpp
+  Strings.cpp
   WindowsProbe.cpp
 )
 

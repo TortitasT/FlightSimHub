@@ -28,7 +28,9 @@ Settings SampleSettings() {
 struct TempDir {
   std::filesystem::path path;
   TempDir() {
-    path = std::filesystem::temp_directory_path() / "fshub-settings-test";
+    // Unique per instance: ctest -j runs these test cases concurrently
+    path = std::filesystem::temp_directory_path()
+      / ("fshub-settings-test-" + NewLauncherId());
     std::filesystem::remove_all(path);
     std::filesystem::create_directories(path);
   }

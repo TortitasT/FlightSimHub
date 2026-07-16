@@ -51,6 +51,15 @@ class FakeProbe final : public IProbe {
     }
     return it->second;
   }
+
+  std::vector<std::filesystem::path> ListSubdirectories(
+    const std::filesystem::path& path) const override {
+    const auto it = subdirs.find(path);
+    return it == subdirs.end() ? std::vector<std::filesystem::path> {}
+                               : it->second;
+  }
+
+  std::map<std::filesystem::path, std::vector<std::filesystem::path>> subdirs;
 };
 
 AppDefinition BmsApp() {
@@ -193,6 +202,18 @@ TEST_CASE("Managed apps dir is checked for portable apps", "[Detector]") {
   CHECK(
     state.exePath
     == std::filesystem::path(kManagedDir) / "aitrack" / "AITrack.exe");
+}
+
+TEST_CASE("Managed apps dir is searched one level deep", "[Detector]") {
+  FakeProbe probe;
+  const auto root = std::filesystem::path(kManagedDir) / "aitrack";
+  probe.subdirs[root] = {root / "aitrack-v0.7.1"};
+  probe.files.insert(root / "aitrack-v0.7.1" / "AITrack.exe");
+  Detector detector(probe, kManagedDir);
+
+  const auto state = detector.Resolve(PortableApp(), std::nullopt);
+  CHECK(state.status == InstallState::Status::Detected);
+  CHECK(state.exePath == root / "aitrack-v0.7.1" / "AITrack.exe");
 }
 
 TEST_CASE("Nothing found anywhere is NotFound", "[Detector]") {

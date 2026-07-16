@@ -63,27 +63,47 @@ winrt::Windows::Web::Http::HttpClient MakeHttpClient() {
 
 }  // namespace
 
-std::expected<nlohmann::json, std::string> FetchLatestReleaseJson(
-  const std::string& repo) {
+std::expected<nlohmann::json, std::string> FetchJson(const std::string& url) {
   try {
     const auto client = MakeHttpClient();
-    const winrt::Windows::Foundation::Uri uri {winrt::to_hstring(
-      std::format("https://api.github.com/repos/{}/releases/latest", repo))};
+    const winrt::Windows::Foundation::Uri uri {winrt::to_hstring(url)};
     const auto response = client.GetAsync(uri).get();
     if (!response.IsSuccessStatusCode()) {
       return std::unexpected(std::format(
         "GitHub API returned {} for {}",
         static_cast<int>(response.StatusCode()),
-        repo));
+        url));
     }
     const auto body
       = winrt::to_string(response.Content().ReadAsStringAsync().get());
     return nlohmann::json::parse(body);
-  } catch (const std::exception& e) {
-    return std::unexpected(e.what());
   } catch (const winrt::hresult_error& e) {
     return std::unexpected(winrt::to_string(e.message()));
+  } catch (const std::exception& e) {
+    return std::unexpected(e.what());
   }
+}
+
+std::expected<nlohmann::json, std::string> FetchLatestReleaseJson(
+  const std::string& repo) {
+  auto latest = FetchJson(
+    std::format("https://api.github.com/repos/{}/releases/latest", repo));
+  if (latest) {
+    return latest;
+  }
+  // Projects that only publish prereleases (e.g. AITrack) have no
+  // "latest" release; fall back to the newest entry in the full list
+  const auto releases = FetchJson(
+    std::format("https://api.github.com/repos/{}/releases?per_page=10", repo));
+  if (!releases) {
+    return std::unexpected(latest.error());
+  }
+  for (const auto& release: *releases) {
+    if (!release.value("draft", false)) {
+      return release;
+    }
+  }
+  return std::unexpected(std::format("no releases found for {}", repo));
 }
 
 std::expected<void, std::string> DownloadFile(
@@ -137,6 +157,10 @@ std::expected<void, std::string> DownloadFile(
         onProgress(static_cast<double>(received) / total);
       }
     }
+    out.flush();
+    if (!out.good()) {
+      return std::unexpected("failed writing the download (disk full?)");
+    }
     return {};
   } catch (const winrt::hresult_error& e) {
     return std::unexpected(winrt::to_string(e.message()));
@@ -165,8 +189,36 @@ std::expected<void, std::string> RunInstallerAndWait(
   return {};
 }
 
+namespace {
+
+// Files and bytes under a directory; used to detect when the shell's
+// asynchronous CopyHere has settled
+std::pair<uintmax_t, uintmax_t> SnapshotTree(
+  const std::filesystem::path& dir) {
+  uintmax_t files = 0, bytes = 0;
+  std::error_code ec;
+  for (auto it = std::filesystem::recursive_directory_iterator(dir, ec);
+       it != std::filesystem::recursive_directory_iterator();
+       it.increment(ec)) {
+    if (ec) {
+      break;
+    }
+    if (it->is_regular_file(ec)) {
+      ++files;
+      bytes += it->file_size(ec);
+    }
+  }
+  return {files, bytes};
+}
+
+}  // namespace
+
 std::expected<void, std::string> ExtractZip(
   const std::filesystem::path& zipFile, const std::filesystem::path& destDir) {
+  // A fresh destination keeps old versions from merging with new ones and
+  // keeps the completion check below meaningful
+  std::error_code ec;
+  std::filesystem::remove_all(destDir, ec);
   std::filesystem::create_directories(destDir);
 
   auto shell = wil::CoCreateInstance<IShellDispatch>(CLSID_Shell);
@@ -210,16 +262,30 @@ std::expected<void, std::string> ExtractZip(
 
   long expected = 0;
   items->get_Count(&expected);
-  for (int attempt = 0; attempt < 300; ++attempt) {
-    wil::com_ptr<FolderItems> extracted;
-    if (SUCCEEDED(destFolder->Items(&extracted)) && extracted) {
-      long count = 0;
-      extracted->get_Count(&count);
-      if (count >= expected) {
+
+  // CopyHere gives no completion signal; wait until every top-level item
+  // exists and the tree has stopped growing for a couple of seconds
+  auto last = SnapshotTree(destDir);
+  int stablePolls = 0;
+  for (int attempt = 0; attempt < 1200; ++attempt) {
+    Sleep(250);
+
+    long topLevel = 0;
+    for (auto it = std::filesystem::directory_iterator(destDir, ec);
+         !ec && it != std::filesystem::directory_iterator();
+         it.increment(ec)) {
+      ++topLevel;
+    }
+
+    const auto now = SnapshotTree(destDir);
+    if (topLevel >= expected && now.first > 0 && now == last) {
+      if (++stablePolls >= 8) {
         return {};
       }
+    } else {
+      stablePolls = 0;
     }
-    Sleep(100);
+    last = now;
   }
   return std::unexpected("zip extraction timed out");
 }
@@ -228,35 +294,42 @@ std::expected<void, std::string> InstallApp(
   const AppDefinition& app,
   const std::filesystem::path& managedAppsDir,
   const ProgressCallback& onProgress) {
-  if (app.source.type != SourceType::GitHub) {
-    return std::unexpected("app has no automatic install source");
-  }
+  // This runs on background threads of fire_and_forget coroutines where an
+  // escaped exception is std::terminate; every failure must become an error
+  try {
+    if (app.source.type != SourceType::GitHub) {
+      return std::unexpected("app has no automatic install source");
+    }
 
-  const auto release = FetchLatestReleaseJson(app.source.repo);
-  if (!release) {
-    return std::unexpected(release.error());
-  }
+    const auto release = FetchLatestReleaseJson(app.source.repo);
+    if (!release) {
+      return std::unexpected(release.error());
+    }
 
-  const auto asset = SelectAsset(*release, app.source.assetPattern);
-  if (!asset) {
-    return std::unexpected(
-      std::format("no release asset matches '{}'", app.source.assetPattern));
-  }
+    const auto asset = SelectAsset(*release, app.source.assetPattern);
+    if (!asset) {
+      return std::unexpected(
+        std::format("no release asset matches '{}'", app.source.assetPattern));
+    }
 
-  wchar_t tempDir[MAX_PATH] {};
-  GetTempPathW(MAX_PATH, tempDir);
-  const auto downloaded = std::filesystem::path(tempDir) / asset->name;
+    const auto downloaded
+      = std::filesystem::temp_directory_path() / asset->name;
 
-  if (const auto result
-      = DownloadFile(asset->downloadUrl, downloaded, onProgress);
-      !result) {
-    return result;
-  }
+    if (const auto result
+        = DownloadFile(asset->downloadUrl, downloaded, onProgress);
+        !result) {
+      return result;
+    }
 
-  if (app.source.installKind == InstallKind::Portable) {
-    return ExtractZip(downloaded, managedAppsDir / app.id);
+    if (app.source.installKind == InstallKind::Portable) {
+      return ExtractZip(downloaded, managedAppsDir / app.id);
+    }
+    return RunInstallerAndWait(downloaded);
+  } catch (const winrt::hresult_error& e) {
+    return std::unexpected(winrt::to_string(e.message()));
+  } catch (const std::exception& e) {
+    return std::unexpected(e.what());
   }
-  return RunInstallerAndWait(downloaded);
 }
 
 }  // namespace FSHub

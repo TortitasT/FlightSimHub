@@ -1,6 +1,7 @@
 #ifdef _WIN32
 
 #include <FSHub/ShortcutWriter.hpp>
+#include <FSHub/Strings.hpp>
 
 #include <windows.h>
 
@@ -9,23 +10,23 @@
 
 #include <wil/com.h>
 #include <wil/resource.h>
+#include <wil/win32_helpers.h>
 
 #include <filesystem>
+#include <string_view>
 
 namespace FSHub {
 
 namespace {
 
 std::wstring SanitizeFileName(const std::string& name) {
-  std::wstring result;
-  for (const char c: name) {
-    if (std::string_view {R"(\/:*?"<>|)"}.contains(c)) {
-      result.push_back(L'_');
-    } else {
-      result.push_back(static_cast<wchar_t>(c));
+  auto wide = Widen(name);
+  for (auto& c: wide) {
+    if (std::wstring_view {LR"(\/:*?"<>|)"}.contains(c)) {
+      c = L'_';
     }
   }
-  return result;
+  return wide;
 }
 
 std::expected<std::filesystem::path, std::string> ShortcutPath(
@@ -53,16 +54,12 @@ std::expected<void, std::string> CreateStartMenuShortcut(
     return std::unexpected(lnkPath.error());
   }
 
-  wchar_t selfPath[MAX_PATH] {};
-  if (!GetModuleFileNameW(nullptr, selfPath, MAX_PATH)) {
-    return std::unexpected("cannot resolve the FlightSimHub executable path");
-  }
-
   try {
+    const auto selfPath = wil::GetModuleFileNameW<std::wstring>(nullptr);
+
     auto link = wil::CoCreateInstance<IShellLinkW>(CLSID_ShellLink);
-    link->SetPath(selfPath);
-    const auto args = L"--launch "
-      + std::wstring {launcherId.begin(), launcherId.end()};
+    link->SetPath(selfPath.c_str());
+    const auto args = L"--launch " + Widen(launcherId);
     link->SetArguments(args.c_str());
     link->SetDescription(L"FlightSimHub launcher");
 
@@ -74,6 +71,15 @@ std::expected<void, std::string> CreateStartMenuShortcut(
     return std::unexpected(e.what());
   }
   return {};
+}
+
+bool StartMenuShortcutExists(const std::string& launcherName) {
+  const auto lnkPath = ShortcutPath(launcherName);
+  if (!lnkPath) {
+    return false;
+  }
+  std::error_code ec;
+  return std::filesystem::exists(*lnkPath, ec);
 }
 
 std::expected<void, std::string> RemoveStartMenuShortcut(

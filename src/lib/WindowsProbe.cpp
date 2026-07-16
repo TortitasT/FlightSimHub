@@ -1,5 +1,6 @@
 #ifdef _WIN32
 
+#include <FSHub/Strings.hpp>
 #include <FSHub/WindowsProbe.hpp>
 
 #include <windows.h>
@@ -8,53 +9,6 @@
 #include <sstream>
 
 namespace FSHub {
-
-namespace {
-
-std::wstring Widen(const std::string& input) {
-  if (input.empty()) {
-    return {};
-  }
-  const int size = MultiByteToWideChar(
-    CP_UTF8, 0, input.data(), static_cast<int>(input.size()), nullptr, 0);
-  std::wstring result(size, L'\0');
-  MultiByteToWideChar(
-    CP_UTF8,
-    0,
-    input.data(),
-    static_cast<int>(input.size()),
-    result.data(),
-    size);
-  return result;
-}
-
-std::string Narrow(const std::wstring& input) {
-  if (input.empty()) {
-    return {};
-  }
-  const int size = WideCharToMultiByte(
-    CP_UTF8,
-    0,
-    input.data(),
-    static_cast<int>(input.size()),
-    nullptr,
-    0,
-    nullptr,
-    nullptr);
-  std::string result(size, '\0');
-  WideCharToMultiByte(
-    CP_UTF8,
-    0,
-    input.data(),
-    static_cast<int>(input.size()),
-    result.data(),
-    size,
-    nullptr,
-    nullptr);
-  return result;
-}
-
-}  // namespace
 
 std::optional<std::string> WindowsProbe::ReadRegistryString(
   const std::string& root,
@@ -77,7 +31,8 @@ std::optional<std::string> WindowsProbe::ReadRegistryString(
       rootKey,
       widePath.c_str(),
       wideValue.c_str(),
-      RRF_RT_REG_SZ,
+      // installers commonly write InstallLocation as REG_EXPAND_SZ
+      RRF_RT_REG_SZ | RRF_RT_REG_EXPAND_SZ,
       nullptr,
       nullptr,
       &size)
@@ -90,7 +45,8 @@ std::optional<std::string> WindowsProbe::ReadRegistryString(
       rootKey,
       widePath.c_str(),
       wideValue.c_str(),
-      RRF_RT_REG_SZ,
+      // installers commonly write InstallLocation as REG_EXPAND_SZ
+      RRF_RT_REG_SZ | RRF_RT_REG_EXPAND_SZ,
       nullptr,
       buffer.data(),
       &size)
@@ -129,6 +85,18 @@ std::optional<std::string> WindowsProbe::ReadTextFile(
   std::ostringstream content;
   content << stream.rdbuf();
   return content.str();
+}
+
+std::vector<std::filesystem::path> WindowsProbe::ListSubdirectories(
+  const std::filesystem::path& path) const {
+  std::vector<std::filesystem::path> result;
+  std::error_code ec;
+  for (const auto& entry: std::filesystem::directory_iterator(path, ec)) {
+    if (entry.is_directory(ec)) {
+      result.push_back(entry.path());
+    }
+  }
+  return result;
 }
 
 }  // namespace FSHub

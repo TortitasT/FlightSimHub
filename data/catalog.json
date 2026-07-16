@@ -115,7 +115,7 @@
     "source": {
       "type": "github",
       "repo": "opentrack/opentrack",
-      "assetPattern": "(?i).*install.*\\.exe$",
+      "assetPattern": "(?i).*(install|setup).*\\.exe$",
       "installKind": "installer"
     }
   },

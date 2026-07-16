@@ -82,6 +82,14 @@ void SaveSettings(const std::filesystem::path& file, const Settings& settings) {
   {
     std::ofstream stream(temp);
     stream << nlohmann::json(settings).dump(2);
+    stream.flush();
+    if (!stream.good()) {
+      // Renaming a truncated temp file would destroy the last good
+      // settings, the exact loss the temp+rename dance exists to prevent
+      std::error_code ec;
+      std::filesystem::remove(temp, ec);
+      throw std::runtime_error("failed to write settings.json");
+    }
   }
   std::filesystem::rename(temp, file);
 }
