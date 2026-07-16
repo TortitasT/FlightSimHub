@@ -37,6 +37,14 @@ MainWindow::MainWindow() {
   setIcon(ICON_BIG, SM_CXICON);
   setIcon(ICON_SMALL, SM_CXSMICON);
 
+  // Portrait default: launcher cards stack vertically, so height is
+  // worth more than width. AppWindow sizes are physical pixels.
+  const auto scale = GetDpiForWindow(hwnd) / 96.0;
+  AppWindow().Resize({
+    static_cast<int32_t>(720 * scale),
+    static_cast<int32_t>(960 * scale),
+  });
+
   Navigation().SelectedItem(EnvironmentItem());
 }
 

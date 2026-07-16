@@ -169,13 +169,19 @@ UIElement LaunchersPage::BuildItemRow(
     RebuildList();
   };
 
+  // Fluent chevron glyphs by codepoint; a literal arrow character here
+  // depends on the compiler's source-charset guess
+  FontIcon upIcon;
+  upIcon.Glyph(L"\uE70E");
   Button up;
-  up.Content(box_value(L"↑"));
+  up.Content(upIcon);
   up.Click([moveItem](auto&&, auto&&) { moveItem(-1); });
   row.Children().Append(up);
 
+  FontIcon downIcon;
+  downIcon.Glyph(L"\uE70D");
   Button down;
-  down.Content(box_value(L"↓"));
+  down.Content(downIcon);
   down.Click([moveItem](auto&&, auto&&) { moveItem(1); });
   row.Children().Append(down);
 

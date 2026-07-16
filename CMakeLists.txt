@@ -18,7 +18,12 @@ set(
   "AssetTargetFallback=$(AssetTargetFallback);native"
 )
 
-add_compile_options("/EHsc")
+add_compile_options(
+  "/EHsc"
+  # Sources are BOM-less UTF-8; without this MSVC decodes them as ACP and
+  # mangles non-ASCII string literals
+  "/utf-8"
+)
 
 # Hybrid CRT: static C++ runtime + dynamic UCRT
 # https://github.com/microsoft/WindowsAppSDK/blob/main/docs/Coding-Guidelines/HybridCRT.md
