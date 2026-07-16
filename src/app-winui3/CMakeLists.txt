@@ -8,7 +8,7 @@ set(
 add_executable(
   FSHub-App
   WIN32
-  app.manifest
+  Resource.rc app.manifest
   App.idl App.xaml App.xaml.cpp App.xaml.h
   EnvironmentPage.idl EnvironmentPage.xaml EnvironmentPage.xaml.cpp EnvironmentPage.xaml.h
   FilePicker.cpp FilePicker.h

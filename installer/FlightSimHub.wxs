@@ -21,6 +21,11 @@
       DowngradeErrorMessage="A newer version of FlightSimHub is already installed." />
     <MediaTemplate EmbedCab="yes" />
 
+    <!-- Shown in Add/Remove Programs; the Start Menu shortcut picks up the
+         exe's embedded icon on its own -->
+    <Icon Id="FlightSimHubIco" SourceFile="$(var.IconFile)" />
+    <Property Id="ARPPRODUCTICON" Value="FlightSimHubIco" />
+
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="FlightSimHub">
         <Files Include="$(var.AppDir)\**" />

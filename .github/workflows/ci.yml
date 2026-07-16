@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - ".gitmodules"
+      - "assets/**"
       - "cmake/**"
       - "third-party/**"
       - "data/**"
@@ -81,6 +82,7 @@ jobs:
             -arch x64 `
             -d AppDir="${{github.workspace}}/stage" `
             -d Version="${version}" `
+            -d IconFile="${{github.workspace}}/assets/icon.ico" `
             -o $msi
           Add-Content $env:GITHUB_OUTPUT "installer-name=${msi}"
       - name: Upload installer

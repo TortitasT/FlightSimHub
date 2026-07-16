@@ -8,6 +8,8 @@
 #include "EnvironmentPage.xaml.h"
 #include "LaunchersPage.xaml.h"
 
+#include <microsoft.ui.xaml.window.h>
+
 using namespace winrt;
 using namespace winrt::Microsoft::UI::Xaml;
 using namespace winrt::Microsoft::UI::Xaml::Controls;
@@ -17,6 +19,24 @@ namespace winrt::FlightSimHubApp::implementation {
 MainWindow::MainWindow() {
   InitializeComponent();
   Title(L"FlightSimHub");
+
+  // The XAML window has no icon by default; point it at the exe's
+  // embedded "appIcon" resource, same pattern as FreeOpenKneeboard
+  HWND hwnd {};
+  check_hresult(get_strong().as<IWindowNative>()->get_WindowHandle(&hwnd));
+  const auto setIcon = [&](WPARAM type, int metric) {
+    const auto icon = LoadImageW(
+      GetModuleHandleW(nullptr),
+      L"appIcon",
+      IMAGE_ICON,
+      GetSystemMetrics(metric),
+      GetSystemMetrics(metric),
+      0);
+    SendMessageW(hwnd, WM_SETICON, type, reinterpret_cast<LPARAM>(icon));
+  };
+  setIcon(ICON_BIG, SM_CXICON);
+  setIcon(ICON_SMALL, SM_CXSMICON);
+
   Navigation().SelectedItem(EnvironmentItem());
 }
 
