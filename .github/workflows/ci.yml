@@ -2,7 +2,9 @@ name: Build and Package
 on:
   pull_request:
     paths:
+      - ".gitmodules"
       - "cmake/**"
+      - "third-party/**"
       - "data/**"
       - "installer/**"
       - "src/**"

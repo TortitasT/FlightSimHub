@@ -3,7 +3,9 @@ on:
   push:
     branches: [master]
     paths:
+      - ".gitmodules"
       - "cmake/**"
+      - "third-party/**"
       - "data/**"
       - "installer/**"
       - "src/**"
