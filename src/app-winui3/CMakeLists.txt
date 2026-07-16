@@ -46,6 +46,14 @@ target_precompile_headers(
   pch.h
 )
 
+# Generated sources injected by the XAML/CppWinRT targets compile with the
+# project-wide /Yu but never #include the pch themselves
+target_compile_options(
+  FSHub-App
+  PRIVATE
+  "/FI${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/FSHub-App.dir/$<CONFIG>/cmake_pch.hxx"
+)
+
 target_compile_definitions(
   FSHub-App
   PRIVATE

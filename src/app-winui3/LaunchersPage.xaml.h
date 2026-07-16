@@ -1,6 +1,6 @@
 #pragma once
 
-#include "LaunchersPage.xaml.g.h"
+#include "LaunchersPage.g.h"
 
 #include <set>
 #include <string>

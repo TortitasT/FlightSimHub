@@ -1,6 +1,6 @@
 #pragma once
 
-#include "EnvironmentPage.xaml.g.h"
+#include "EnvironmentPage.g.h"
 
 #include <string>
 
