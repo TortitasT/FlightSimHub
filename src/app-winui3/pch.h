@@ -25,6 +25,8 @@
 #include <winrt/Microsoft.UI.Xaml.h>
 #include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.Foundation.h>
+// winrt::xaml_typename, used by Frame::Navigate
+#include <winrt/Windows.UI.Xaml.Interop.h>
 #include <winrt/Windows.Storage.Pickers.h>
 #include <winrt/Windows.System.h>
 
