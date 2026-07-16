@@ -1,0 +1,8 @@
+namespace FlightSimHubApp
+{
+    [default_interface]
+    runtimeclass LaunchersPage : Microsoft.UI.Xaml.Controls.Page
+    {
+        LaunchersPage();
+    }
+}
