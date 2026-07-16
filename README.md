@@ -1,6 +1,10 @@
+<img src="assets/logo.svg" alt="FlightSimHub logo" width="96" align="left"/>
+
 # FlightSimHub
 
 A hub for your flight sim needs, targeting **DCS World** and **Falcon BMS**.
+
+<br clear="left"/>
 
 FlightSimHub does two things:
 

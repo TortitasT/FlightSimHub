@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- FlightSimHub "Waterline": HUD flight-path marker as a hub -->
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="#0a0f1c"/>
+  <g stroke="#62f276" stroke-linecap="round" fill="none">
+    <g opacity="0.45" stroke-width="4">
+      <path d="M36 32 H54"/>
+      <path d="M74 32 H92"/>
+      <path d="M36 96 H54"/>
+      <path d="M74 96 H92"/>
+    </g>
+    <circle cx="64" cy="64" r="13" stroke-width="6.5"/>
+    <path d="M22 64 H45" stroke-width="7"/>
+    <path d="M83 64 H106" stroke-width="7"/>
+    <path d="M64 45 V32" stroke-width="7"/>
+  </g>
+</svg>
