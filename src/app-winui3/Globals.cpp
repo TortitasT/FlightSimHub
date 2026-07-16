@@ -6,6 +6,8 @@
 
 #include <nlohmann/json.hpp>
 
+// stl.h must precede win32_helpers.h for std::wstring result support
+#include <wil/stl.h>
 #include <wil/win32_helpers.h>
 
 #include <fstream>
