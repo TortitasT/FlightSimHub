@@ -1,0 +1,29 @@
+{
+  "builtin-baseline": "84bab45d415d22042bd0b9081aea57f362da3f35",
+  "dependencies": [
+    "cppwinrt",
+    "wil",
+    "nlohmann-json"
+  ],
+  "features": {
+    "tests": {
+      "description": "Build unit tests",
+      "dependencies": [
+        "catch2"
+      ]
+    }
+  },
+  "default-features": [
+    "tests"
+  ],
+  "overrides": [
+    {
+      "name": "cppwinrt",
+      "version": "2.0.240111.5"
+    },
+    {
+      "name": "wil",
+      "version": "1.0.250325.1"
+    }
+  ]
+}
