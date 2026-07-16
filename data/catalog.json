@@ -1,0 +1,148 @@
+[
+  {
+    "id": "dcs",
+    "name": "DCS World",
+    "kind": "sim",
+    "exeName": "DCS.exe",
+    "detection": {
+      "registryKeys": [
+        {
+          "root": "HKCU",
+          "path": "Software\\Eagle Dynamics\\DCS World",
+          "value": "Path",
+          "append": "bin/DCS.exe"
+        },
+        {
+          "root": "HKCU",
+          "path": "Software\\Eagle Dynamics\\DCS World OpenBeta",
+          "value": "Path",
+          "append": "bin/DCS.exe"
+        }
+      ],
+      "wellKnownPaths": [
+        "%ProgramFiles%/Eagle Dynamics/DCS World/bin/DCS.exe"
+      ],
+      "steamRelativeExe": "DCSWorld/bin/DCS.exe"
+    },
+    "source": {
+      "type": "manual",
+      "homepage": "https://www.digitalcombatsimulator.com/en/downloads/world/"
+    }
+  },
+  {
+    "id": "falcon-bms",
+    "name": "Falcon BMS",
+    "kind": "sim",
+    "exeName": "Falcon BMS.exe",
+    "detection": {
+      "registryKeys": [
+        {
+          "root": "HKLM",
+          "path": "SOFTWARE\\WOW6432Node\\Benchmark Sims\\Falcon BMS 4.38",
+          "value": "baseDir",
+          "append": "Bin/x64/Falcon BMS.exe"
+        },
+        {
+          "root": "HKLM",
+          "path": "SOFTWARE\\WOW6432Node\\Benchmark Sims\\Falcon BMS 4.37",
+          "value": "baseDir",
+          "append": "Bin/x64/Falcon BMS.exe"
+        }
+      ],
+      "steamRelativeExe": "Falcon BMS 4.37/Bin/x64/Falcon BMS.exe"
+    },
+    "source": {
+      "type": "manual",
+      "homepage": "https://www.falcon-bms.com/downloads/"
+    }
+  },
+  {
+    "id": "freeopenkneeboard",
+    "name": "FreeOpenKneeboard",
+    "kind": "companion",
+    "exeName": "OpenKneeboardApp.exe",
+    "detection": {
+      "registryKeys": [
+        {
+          "root": "HKLM",
+          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\OpenKneeboard",
+          "value": "InstallLocation",
+          "append": "bin/OpenKneeboardApp.exe"
+        }
+      ],
+      "wellKnownPaths": [
+        "%ProgramFiles%/OpenKneeboard/bin/OpenKneeboardApp.exe"
+      ]
+    },
+    "source": {
+      "type": "github",
+      "repo": "TortitasT/FreeOpenKneeboard",
+      "assetPattern": "(?i).*\\.(msi|exe)$",
+      "installKind": "installer"
+    }
+  },
+  {
+    "id": "aitrack",
+    "name": "AITrack",
+    "kind": "companion",
+    "exeName": "AITrack.exe",
+    "detection": {},
+    "source": {
+      "type": "github",
+      "repo": "AIRLegend/aitrack",
+      "assetPattern": "(?i)aitrack.*\\.zip$",
+      "installKind": "portable"
+    }
+  },
+  {
+    "id": "opentrack",
+    "name": "OpenTrack",
+    "kind": "companion",
+    "exeName": "opentrack.exe",
+    "detection": {
+      "registryKeys": [
+        {
+          "root": "HKLM",
+          "path": "SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\opentrack",
+          "value": "InstallLocation",
+          "append": "opentrack.exe"
+        }
+      ],
+      "wellKnownPaths": [
+        "%ProgramFiles(x86)%/opentrack/opentrack.exe"
+      ]
+    },
+    "source": {
+      "type": "github",
+      "repo": "opentrack/opentrack",
+      "assetPattern": "(?i).*install.*\\.exe$",
+      "installKind": "installer"
+    }
+  },
+  {
+    "id": "wdp",
+    "name": "Weapons Delivery Planner",
+    "kind": "companion",
+    "exeName": "WDP.exe",
+    "detection": {
+      "wellKnownPaths": [
+        "%ProgramFiles(x86)%/WeaponDeliveryPlanner/WDP.exe"
+      ]
+    },
+    "source": {
+      "type": "manual",
+      "homepage": "https://www.weapondeliveryplanner.nl"
+    }
+  },
+  {
+    "id": "ezboards",
+    "name": "EzBoards",
+    "kind": "companion",
+    "exeName": "EzBoards.exe",
+    "detection": {},
+    "source": {
+      "type": "manual",
+      "homepage": "https://forum.falcon-bms.com/topic/19901/"
+    }
+  }
+]
