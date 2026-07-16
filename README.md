@@ -14,6 +14,12 @@ FlightSimHub does two things:
 
 Built with the same stack as [FreeOpenKneeboard](https://github.com/TortitasT/FreeOpenKneeboard): C++23, CMake + vcpkg, WinUI 3 (Windows App SDK) with C++/WinRT.
 
+## Installing
+
+Every push to `master` builds and publishes an MSI installer under
+[Releases](https://github.com/TortitasT/FlightSimHub/releases). Download the
+latest `FlightSimHub-v*.msi` and run it; the app lands in the Start Menu.
+
 ## Building
 
 Requirements:
@@ -27,6 +33,9 @@ Requirements:
 cmake --preset default
 cmake --build --preset debug
 ```
+
+Alternatively, clone with `--recurse-submodules` and use the pinned vcpkg
+submodule (what CI uses): `cmake --preset vcpkg`.
 
 The app lands in `build\src\app-winui3\Debug\FlightSimHub.exe` with `catalog.json` beside it.
 

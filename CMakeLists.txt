@@ -33,7 +33,17 @@ add_link_options(
 
 set(CMAKE_CONFIGURATION_TYPES Debug RelWithDebInfo)
 
-project(FlightSimHub VERSION 0.1.0 LANGUAGES CXX)
+if (DEFINED ENV{GITHUB_RUN_NUMBER})
+  set(VERSION_BUILD $ENV{GITHUB_RUN_NUMBER})
+else ()
+  # Local builds are identifiable as build 0
+  set(VERSION_BUILD 0)
+endif ()
+
+project(FlightSimHub VERSION 0.1.0.${VERSION_BUILD} LANGUAGES CXX)
+
+# Handy for CI
+file(WRITE "${CMAKE_BINARY_DIR}/version.txt" "${CMAKE_PROJECT_VERSION}")
 
 string(REGEX MATCH "^Visual Studio" GENERATOR_IS_VS "${CMAKE_GENERATOR}")
 if (NOT GENERATOR_IS_VS)

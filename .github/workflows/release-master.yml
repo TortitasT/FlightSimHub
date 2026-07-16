@@ -1,0 +1,87 @@
+name: Release from master
+on:
+  push:
+    branches: [master]
+    paths:
+      - "cmake/**"
+      - "data/**"
+      - "installer/**"
+      - "src/**"
+      - "tests/**"
+      - "*.props"
+      - "CMakeLists.txt"
+      - "CMakePresets.json"
+      - "vcpkg.json"
+      - ".github/workflows/release-master.yml"
+  workflow_dispatch:
+permissions:
+  contents: write
+  packages: write
+env:
+  USERNAME: ${{github.repository_owner}}
+  FEED_URL: https://nuget.pkg.github.com/${{github.repository_owner}}/index.json
+  VCPKG_BINARY_SOURCES: "clear;nuget,https://nuget.pkg.github.com/${{github.repository_owner}}/index.json,readwrite"
+jobs:
+  release:
+    name: Build installer and publish release
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          submodules: 'true'
+      - name: Bootstrap vcpkg
+        run: third-party/vcpkg/bootstrap-vcpkg.bat
+      - name: Add nuget vcpkg source
+        shell: pwsh
+        run: |
+          .$(third-party/vcpkg/vcpkg fetch nuget) `
+            sources add `
+            -Source "${{ env.FEED_URL }}" `
+            -StorePasswordInClearText `
+            -Name GitHubPackages `
+            -UserName "${{ env.USERNAME }}" `
+            -Password "${{ secrets.GITHUB_TOKEN }}"
+          .$(third-party/vcpkg/vcpkg fetch nuget) `
+            setapikey "${{ secrets.GITHUB_TOKEN }}" `
+            -Source "${{ env.FEED_URL }}"
+      - name: Configure
+        run: cmake --preset vcpkg
+      - name: Build
+        id: build
+        shell: pwsh
+        run: |
+          cmake --build build `
+            --config RelWithDebInfo `
+            --parallel
+          $version = "$(Get-Content build/version.txt)"
+          Add-Content $Env:GITHUB_OUTPUT "VERSION=${version}"
+      - name: Test
+        run: ctest --test-dir build -C RelWithDebInfo --output-on-failure
+      - name: Stage installer payload
+        shell: pwsh
+        run: |
+          robocopy "build/src/app-winui3/RelWithDebInfo" stage `
+            /E /XF *.pdb *.lib *.exp *.ilk
+          # robocopy exit codes below 8 mean success
+          if ($LASTEXITCODE -ge 8) { exit 1 } else { exit 0 }
+      - name: Build installer
+        id: build-installer
+        shell: pwsh
+        run: |
+          dotnet tool install --global wix --version 5.0.2
+          $version = "${{steps.build.outputs.VERSION}}"
+          $msi = "FlightSimHub-v${version}.msi"
+          wix build installer/FlightSimHub.wxs `
+            -arch x64 `
+            -d AppDir="${{github.workspace}}/stage" `
+            -d Version="${version}" `
+            -o $msi
+          Add-Content $env:GITHUB_OUTPUT "installer-name=${msi}"
+      - name: Publish release
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda
+        with:
+          tag_name: v${{steps.build.outputs.VERSION}}-build${{github.run_number}}
+          target_commitish: ${{github.sha}}
+          name: FlightSimHub v${{steps.build.outputs.VERSION}} (build ${{github.run_number}})
+          files: ${{steps.build-installer.outputs.installer-name}}

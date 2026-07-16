@@ -1,0 +1,96 @@
+name: Build and Package
+on:
+  pull_request:
+    paths:
+      - "cmake/**"
+      - "data/**"
+      - "installer/**"
+      - "src/**"
+      - "tests/**"
+      - "*.props"
+      - "CMakeLists.txt"
+      - "CMakePresets.json"
+      - "vcpkg.json"
+      - ".github/workflows/ci.yml"
+  workflow_dispatch:
+permissions:
+  packages: write
+env:
+  USERNAME: ${{github.repository_owner}}
+  FEED_URL: https://nuget.pkg.github.com/${{github.repository_owner}}/index.json
+  VCPKG_BINARY_SOURCES: "clear;nuget,https://nuget.pkg.github.com/${{github.repository_owner}}/index.json,${{ github.event_name == 'pull_request' && 'read' || 'readwrite' }}"
+jobs:
+  build:
+    name: Build (${{matrix.config}})
+    runs-on: windows-2022
+    strategy:
+      matrix:
+        config: [RelWithDebInfo, Debug]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          submodules: 'true'
+      - name: Bootstrap vcpkg
+        run: third-party/vcpkg/bootstrap-vcpkg.bat
+      - name: Add nuget vcpkg source
+        shell: pwsh
+        run: |
+          .$(third-party/vcpkg/vcpkg fetch nuget) `
+            sources add `
+            -Source "${{ env.FEED_URL }}" `
+            -StorePasswordInClearText `
+            -Name GitHubPackages `
+            -UserName "${{ env.USERNAME }}" `
+            -Password "${{ secrets.GITHUB_TOKEN }}"
+          .$(third-party/vcpkg/vcpkg fetch nuget) `
+            setapikey "${{ secrets.GITHUB_TOKEN }}" `
+            -Source "${{ env.FEED_URL }}"
+      - name: Configure
+        run: cmake --preset vcpkg
+      - name: Build
+        id: build
+        shell: pwsh
+        run: |
+          cmake --build build `
+            --config ${{matrix.config}} `
+            --parallel
+          $version = "$(Get-Content build/version.txt)"
+          Add-Content $Env:GITHUB_OUTPUT "VERSION=${version}"
+      - name: Test
+        run: ctest --test-dir build -C ${{matrix.config}} --output-on-failure
+      - name: Stage installer payload
+        if: ${{matrix.config != 'Debug'}}
+        shell: pwsh
+        run: |
+          robocopy "build/src/app-winui3/${{matrix.config}}" stage `
+            /E /XF *.pdb *.lib *.exp *.ilk
+          # robocopy exit codes below 8 mean success
+          if ($LASTEXITCODE -ge 8) { exit 1 } else { exit 0 }
+      - name: Build installer
+        id: build-installer
+        if: ${{matrix.config != 'Debug'}}
+        shell: pwsh
+        run: |
+          dotnet tool install --global wix --version 5.0.2
+          $version = "${{steps.build.outputs.VERSION}}"
+          $msi = "FlightSimHub-v${version}.msi"
+          wix build installer/FlightSimHub.wxs `
+            -arch x64 `
+            -d AppDir="${{github.workspace}}/stage" `
+            -d Version="${version}" `
+            -o $msi
+          Add-Content $env:GITHUB_OUTPUT "installer-name=${msi}"
+      - name: Upload installer
+        if: ${{matrix.config != 'Debug'}}
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{steps.build-installer.outputs.installer-name}}
+          path: ${{steps.build-installer.outputs.installer-name}}
+      - name: Upload debug symbols
+        if: ${{matrix.config != 'Debug'}}
+        uses: actions/upload-artifact@v7
+        with:
+          name: FlightSimHub-GHA${{github.run_number}}-DebugSymbols
+          path: build/src/app-winui3/${{matrix.config}}/*.pdb
+          if-no-files-found: ignore

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Built with WiX 5:
+    wix build installer/FlightSimHub.wxs -arch x64
+      -d AppDir=<staged app directory> -d Version=<x.y.z.build>
+      -o FlightSimHub-<version>.msi
+  AppDir must contain FlightSimHub.exe, catalog.json and the self-contained
+  Windows App SDK runtime (the app's build output, minus pdb/lib files).
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package
+    Name="FlightSimHub"
+    Manufacturer="FlightSimHub"
+    Version="$(var.Version)"
+    UpgradeCode="03F50A74-BA3B-4A8A-A5D6-B08FF6597D4C"
+    Language="1033"
+    Scope="perMachine"
+    Compressed="yes">
+
+    <MajorUpgrade
+      DowngradeErrorMessage="A newer version of FlightSimHub is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="FlightSimHub">
+        <Files Include="$(var.AppDir)\**" />
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Component Id="AppShortcut" Guid="8B0E3A0E-4E51-4B04-9E4E-1B4B6ED0B7C4">
+        <Shortcut
+          Id="AppStartMenuShortcut"
+          Name="FlightSimHub"
+          Description="Hub for your flight sim needs"
+          Target="[INSTALLFOLDER]FlightSimHub.exe"
+          WorkingDirectory="INSTALLFOLDER" />
+        <RegistryValue
+          Root="HKCU"
+          Key="Software\FlightSimHub"
+          Name="installed"
+          Type="integer"
+          Value="1"
+          KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+  </Package>
+</Wix>
