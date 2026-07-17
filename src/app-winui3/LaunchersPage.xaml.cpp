@@ -169,24 +169,18 @@ UIElement LaunchersPage::BuildItemRow(
     RebuildList();
   };
 
-  // Fluent chevron glyphs by codepoint; a literal arrow character here
-  // depends on the compiler's source-charset guess
-  FontIcon upIcon;
-  upIcon.Glyph(L"\uE70E");
-  Button up;
-  up.Content(upIcon);
+  // Fluent glyphs by codepoint; a literal arrow character here depends on
+  // the compiler's source-charset guess. Icon-only in this dense row, with
+  // the label preserved as a tooltip.
+  auto up = Ui::IconOnlyButton(L"\uE70E", L"Move up");
   up.Click([moveItem](auto&&, auto&&) { moveItem(-1); });
   row.Children().Append(up);
 
-  FontIcon downIcon;
-  downIcon.Glyph(L"\uE70D");
-  Button down;
-  down.Content(downIcon);
+  auto down = Ui::IconOnlyButton(L"\uE70D", L"Move down");
   down.Click([moveItem](auto&&, auto&&) { moveItem(1); });
   row.Children().Append(down);
 
-  Button remove;
-  remove.Content(box_value(L"Remove"));
+  auto remove = Ui::IconOnlyButton(L"\uE738", L"Remove");
   remove.Click([this, launcherId, itemIndex](auto&&, auto&&) {
     auto* launcher = LauncherById(launcherId);
     if (!launcher || itemIndex >= launcher->items.size()) {
@@ -243,8 +237,7 @@ UIElement LaunchersPage::BuildCard(const std::string& launcherId) {
     body.Children().Append(BuildItemRow(launcherId, i));
   }
 
-  Button addItem;
-  addItem.Content(box_value(L"Add program"));
+  auto addItem = Ui::IconButton(L"\uE710", L"Add program");
   addItem.Click([this, launcherId](auto&&, auto&&) {
     const auto apps = LaunchableApps();
     if (auto* launcher = LauncherById(launcherId); launcher && !apps.empty()) {
@@ -277,8 +270,8 @@ UIElement LaunchersPage::BuildCard(const std::string& launcherId) {
   actions.Orientation(Orientation::Horizontal);
   actions.Spacing(8);
 
-  Button launch;
-  launch.Content(box_value(hstring {running ? L"Running..." : L"Launch"}));
+  auto launch = Ui::IconButton(
+    running ? L"\uE72C" : L"\uE768", running ? L"Running\u2026" : L"Launch");
   launch.IsEnabled(!running);
   launch.Style(Ui::LookupResource<Microsoft::UI::Xaml::Style>(
     L"AccentButtonStyle"));
@@ -286,8 +279,7 @@ UIElement LaunchersPage::BuildCard(const std::string& launcherId) {
     [this, launcherId](auto&&, auto&&) { LaunchClicked(launcherId); });
   actions.Children().Append(launch);
 
-  Button shortcut;
-  shortcut.Content(box_value(L"Create Start Menu shortcut"));
+  auto shortcut = Ui::IconButton(L"\uE718", L"Create Start Menu shortcut");
   shortcut.Click([this, launcherId](auto&&, auto&&) {
     if (const auto* launcher = LauncherById(launcherId)) {
       if (const auto result
@@ -299,8 +291,7 @@ UIElement LaunchersPage::BuildCard(const std::string& launcherId) {
   });
   actions.Children().Append(shortcut);
 
-  Button remove;
-  remove.Content(box_value(L"Delete launcher"));
+  auto remove = Ui::IconButton(L"\uE74D", L"Delete launcher");
   remove.Click([this, launcherId](auto&&, auto&&) {
     auto& model = AppModel::Get();
     if (const auto* launcher = LauncherById(launcherId)) {

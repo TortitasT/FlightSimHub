@@ -68,6 +68,20 @@ UIElement EnvironmentPage::BuildRow(const std::string& appId) {
   const auto& state = model.states.at(appId);
   const bool found = state.status != InstallState::Status::NotFound;
 
+  // A leading icon tile identifies the app at a glance: an airplane for
+  // sims, the apps-grid glyph for companions. One icon family throughout.
+  FontIcon kindIcon;
+  kindIcon.Glyph(app.kind == AppKind::Sim ? L"\uE709" : L"\uE71D");
+  kindIcon.FontSize(20);
+  Border iconTile;
+  iconTile.Width(40);
+  iconTile.Height(40);
+  iconTile.CornerRadius({8, 8, 8, 8});
+  iconTile.VerticalAlignment(VerticalAlignment::Center);
+  iconTile.Background(Ui::LookupResource<Media::Brush>(
+    L"ControlFillColorSecondaryBrush"));
+  iconTile.Child(kindIcon);
+
   StackPanel info;
   info.Spacing(2);
   info.VerticalAlignment(VerticalAlignment::Center);
@@ -78,12 +92,27 @@ UIElement EnvironmentPage::BuildRow(const std::string& appId) {
     Ui::LookupResource<Microsoft::UI::Xaml::Style>(L"BodyStrongTextBlockStyle"));
   info.Children().Append(name);
 
+  // Presence at a glance: green detected, blue located by hand, amber missing
+  const wchar_t* dotBrush
+    = state.status == InstallState::Status::Detected
+      ? L"SystemFillColorSuccessBrush"
+    : state.status == InstallState::Status::LocatedManually
+      ? L"SystemFillColorAttentionBrush"
+      : L"SystemFillColorCautionBrush";
+
   TextBlock status;
   status.Text(
     StatusText(state)
     + (found ? L"    " + hstring {state.exePath.wstring()} : L""));
   status.Opacity(0.7);
-  info.Children().Append(status);
+
+  StackPanel statusRow;
+  statusRow.Orientation(Orientation::Horizontal);
+  statusRow.Spacing(8);
+  statusRow.VerticalAlignment(VerticalAlignment::Center);
+  statusRow.Children().Append(Ui::StatusDot(dotBrush));
+  statusRow.Children().Append(status);
+  info.Children().Append(statusRow);
 
   StackPanel buttons;
   buttons.Orientation(Orientation::Horizontal);
@@ -92,14 +121,12 @@ UIElement EnvironmentPage::BuildRow(const std::string& appId) {
   buttons.HorizontalAlignment(HorizontalAlignment::Right);
 
   if (!found && app.source.type == SourceType::GitHub) {
-    Button install;
-    install.Content(box_value(L"Install"));
+    auto install = Ui::IconButton(L"\uE896", L"Install");
     install.Click([this, appId](auto&&, auto&&) { InstallClicked(appId); });
     buttons.Children().Append(install);
   }
   if (app.source.type == SourceType::Manual) {
-    Button download;
-    download.Content(box_value(L"Open download page"));
+    auto download = Ui::IconButton(L"\uE774", L"Open download page");
     download.Click([homepage = app.source.homepage](auto&&, auto&&) {
       ShellExecuteW(
         nullptr,
@@ -111,28 +138,32 @@ UIElement EnvironmentPage::BuildRow(const std::string& appId) {
     });
     buttons.Children().Append(download);
   }
-  Button locate;
-  locate.Content(box_value(L"Locate..."));
+  auto locate = Ui::IconButton(L"\uE8E5", L"Locate\u2026");
   locate.Click([this, appId](auto&&, auto&&) { LocateClicked(appId); });
   buttons.Children().Append(locate);
 
   if (model.settings.appOverrides.contains(appId)) {
-    Button clear;
-    clear.Content(box_value(L"Clear override"));
+    auto clear = Ui::IconButton(L"\uE7A7", L"Clear override");
     clear.Click(
       [this, appId](auto&&, auto&&) { ClearOverrideClicked(appId); });
     buttons.Children().Append(clear);
   }
 
   Grid row;
+  ColumnDefinition iconColumn;
+  iconColumn.Width({0, GridUnitType::Auto});
   ColumnDefinition infoColumn;
   infoColumn.Width({1, GridUnitType::Star});
   ColumnDefinition buttonColumn;
   buttonColumn.Width({0, GridUnitType::Auto});
+  row.ColumnDefinitions().Append(iconColumn);
   row.ColumnDefinitions().Append(infoColumn);
   row.ColumnDefinitions().Append(buttonColumn);
-  Grid::SetColumn(info, 0);
-  Grid::SetColumn(buttons, 1);
+  row.ColumnSpacing(12);
+  Grid::SetColumn(iconTile, 0);
+  Grid::SetColumn(info, 1);
+  Grid::SetColumn(buttons, 2);
+  row.Children().Append(iconTile);
   row.Children().Append(info);
   row.Children().Append(buttons);
   auto card = Ui::MakeCard(row);

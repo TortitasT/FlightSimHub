@@ -9,6 +9,46 @@
     IsBackButtonVisible="Collapsed"
     IsSettingsVisible="False"
     SelectionChanged="OnNavigationChanged">
+    <muxc:NavigationView.PaneHeader>
+      <StackPanel
+        Orientation="Horizontal"
+        Spacing="10"
+        Padding="4,0,16,0"
+        VerticalAlignment="Center">
+        <!-- Waterline mark: HUD flight-path marker, drawn as vectors so it
+             stays crisp at any DPI and needs no packaged asset -->
+        <Viewbox Width="24" Height="24">
+          <Grid Width="128" Height="128">
+            <Border CornerRadius="28" Background="#0A0F1C"/>
+            <Canvas>
+              <Ellipse
+                Canvas.Left="50"
+                Canvas.Top="50"
+                Width="28"
+                Height="28"
+                Stroke="#62F276"
+                StrokeThickness="9"/>
+              <Line
+                X1="18" Y1="64" X2="43" Y2="64"
+                Stroke="#62F276" StrokeThickness="10"
+                StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+              <Line
+                X1="85" Y1="64" X2="110" Y2="64"
+                Stroke="#62F276" StrokeThickness="10"
+                StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+              <Line
+                X1="64" Y1="44" X2="64" Y2="26"
+                Stroke="#62F276" StrokeThickness="10"
+                StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+            </Canvas>
+          </Grid>
+        </Viewbox>
+        <TextBlock
+          Text="FlightSimHub"
+          VerticalAlignment="Center"
+          Style="{StaticResource BodyStrongTextBlockStyle}"/>
+      </StackPanel>
+    </muxc:NavigationView.PaneHeader>
     <muxc:NavigationView.MenuItems>
       <muxc:NavigationViewItem x:Name="EnvironmentItem" Content="Environment" Tag="environment"/>
       <muxc:NavigationViewItem Content="Launchers" Tag="launchers"/>
