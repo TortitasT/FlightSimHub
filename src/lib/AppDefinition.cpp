@@ -85,6 +85,9 @@ std::vector<AppDefinition> ParseCatalog(const nlohmann::json& catalog) {
         .kind = ParseAppKind(entry.at("kind")),
         .detection = ParseDetection(entry.value("detection", nlohmann::json::object())),
         .source = ParseSource(entry.at("source")),
+        .group = entry.value("group", ""),
+        .startTrackingButton = entry.value("startTrackingButton", ""),
+        .gameProcessName = entry.value("gameProcessName", ""),
       });
     } catch (const std::exception& e) {
       throw std::runtime_error(

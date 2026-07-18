@@ -13,6 +13,9 @@
 #include <FSHub/Strings.hpp>
 
 #include <algorithm>
+#include <string>
+#include <utility>
+#include <vector>
 
 using namespace winrt;
 using namespace winrt::Microsoft::UI::Xaml;
@@ -57,9 +60,51 @@ EnvironmentPage::EnvironmentPage() {
 
 void EnvironmentPage::RebuildList() {
   AppList().Children().Clear();
-  for (const auto& app: AppModel::Get().catalog) {
-    AppList().Children().Append(BuildRow(app.id));
+  const auto& catalog = AppModel::Get().catalog;
+
+  // The section a companion falls under: its group, defaulting to "general".
+  const auto groupOf = [](const AppDefinition& app) -> std::string {
+    return app.group.empty() ? std::string {"general"} : app.group;
+  };
+
+  // Sections run one per sim (in catalog order), then a General section for
+  // cross-sim tools. A sim heads its own section (keyed by its id); companions
+  // are placed by their group.
+  std::vector<std::pair<std::string, hstring>> sections;
+  for (const auto& app: catalog) {
+    if (app.kind == AppKind::Sim) {
+      sections.push_back({app.id, to_hstring(app.name)});
+    }
   }
+  sections.push_back({"general", L"General"});
+
+  for (const auto& [key, title]: sections) {
+    std::vector<const AppDefinition*> members;
+    for (const auto& app: catalog) {
+      const std::string section
+        = app.kind == AppKind::Sim ? app.id : groupOf(app);
+      if (section == key) {
+        members.push_back(&app);
+      }
+    }
+    if (members.empty()) {
+      continue;
+    }
+    AppList().Children().Append(BuildSectionHeader(title));
+    for (const auto* app: members) {
+      AppList().Children().Append(BuildRow(app->id));
+    }
+  }
+}
+
+UIElement EnvironmentPage::BuildSectionHeader(const hstring& title) {
+  TextBlock header;
+  header.Text(title);
+  header.Style(Ui::LookupResource<Microsoft::UI::Xaml::Style>(
+    L"BodyStrongTextBlockStyle"));
+  // Breathing room above each section; the list's own spacing handles the rest.
+  header.Margin({0, 8, 0, 0});
+  return header;
 }
 
 UIElement EnvironmentPage::BuildRow(const std::string& appId) {
@@ -125,7 +170,7 @@ UIElement EnvironmentPage::BuildRow(const std::string& appId) {
     install.Click([this, appId](auto&&, auto&&) { InstallClicked(appId); });
     buttons.Children().Append(install);
   }
-  if (app.source.type == SourceType::Manual) {
+  if (!found && app.source.type == SourceType::Manual) {
     auto download = Ui::IconButton(L"\uE774", L"Open download page");
     download.Click([homepage = app.source.homepage](auto&&, auto&&) {
       ShellExecuteW(

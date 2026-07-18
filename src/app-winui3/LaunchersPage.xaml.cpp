@@ -74,12 +74,37 @@ UIElement LaunchersPage::BuildItemRow(
   const auto* launcher = LauncherById(launcherId);
   const auto& item = launcher->items.at(itemIndex);
 
-  StackPanel row;
-  row.Orientation(Orientation::Horizontal);
-  row.Spacing(8);
+  // A dense single horizontal line overflowed the card in a portrait window.
+  // Lay the item out on two width-adaptive lines inside its own sub-card:
+  //   line 1:  [ app picker .......................... ]  [up][down][remove]
+  //   line 2:  [ arguments ................ ] [delay]  [x] Start tracking
+  const auto starColumn = [] {
+    ColumnDefinition c;
+    c.Width({1, GridUnitType::Star});
+    return c;
+  };
+  const auto autoColumn = [] {
+    ColumnDefinition c;
+    c.Width({0, GridUnitType::Auto});
+    return c;
+  };
 
+  const auto moveItem = [this, launcherId, itemIndex](int direction) {
+    auto* launcher = LauncherById(launcherId);
+    const auto target = static_cast<int>(itemIndex) + direction;
+    if (
+      !launcher || target < 0
+      || target >= static_cast<int>(launcher->items.size())) {
+      return;
+    }
+    std::swap(launcher->items.at(itemIndex), launcher->items.at(target));
+    AppModel::Get().Save();
+    RebuildList();
+  };
+
+  // --- Line 1: app picker (stretches) + reorder/remove actions ---
   ComboBox appPicker;
-  appPicker.MinWidth(220);
+  appPicker.HorizontalAlignment(HorizontalAlignment::Stretch);
   const auto apps = LaunchableApps();
   int selected = -1;
   for (size_t i = 0; i < apps.size(); ++i) {
@@ -97,8 +122,7 @@ UIElement LaunchersPage::BuildItemRow(
   appPicker.SelectedIndex(selected);
   appPicker.SelectionChanged(
     [this, launcherId, itemIndex, apps](auto&& sender, auto&&) {
-      const auto index
-        = sender.template as<ComboBox>().SelectedIndex();
+      const auto index = sender.template as<ComboBox>().SelectedIndex();
       if (index < 0 || index >= static_cast<int>(apps.size())) {
         return;
       }
@@ -117,11 +141,46 @@ UIElement LaunchersPage::BuildItemRow(
         }
       });
     });
-  row.Children().Append(appPicker);
 
+  // Fluent glyphs by codepoint; a literal arrow character here depends on the
+  // compiler's source-charset guess. Icon-only, with the label as a tooltip.
+  auto up = Ui::IconOnlyButton(L"\uE70E", L"Move up");
+  up.Click([moveItem](auto&&, auto&&) { moveItem(-1); });
+  auto down = Ui::IconOnlyButton(L"\uE70D", L"Move down");
+  down.Click([moveItem](auto&&, auto&&) { moveItem(1); });
+  auto remove = Ui::IconOnlyButton(L"\uE738", L"Remove");
+  remove.Click([this, launcherId, itemIndex](auto&&, auto&&) {
+    auto* launcher = LauncherById(launcherId);
+    if (!launcher || itemIndex >= launcher->items.size()) {
+      return;
+    }
+    launcher->items.erase(launcher->items.begin() + itemIndex);
+    AppModel::Get().Save();
+    RebuildList();
+  });
+
+  StackPanel actions;
+  actions.Orientation(Orientation::Horizontal);
+  actions.Spacing(4);
+  actions.VerticalAlignment(VerticalAlignment::Center);
+  actions.Children().Append(up);
+  actions.Children().Append(down);
+  actions.Children().Append(remove);
+
+  Grid topRow;
+  topRow.ColumnSpacing(8);
+  topRow.ColumnDefinitions().Append(starColumn());
+  topRow.ColumnDefinitions().Append(autoColumn());
+  Grid::SetColumn(appPicker, 0);
+  Grid::SetColumn(actions, 1);
+  topRow.Children().Append(appPicker);
+  topRow.Children().Append(actions);
+
+  // --- Line 2: arguments (stretches) + delay + start-tracking toggle ---
   TextBox args;
-  args.PlaceholderText(L"Arguments");
-  args.MinWidth(160);
+  args.Header(box_value(L"Arguments"));
+  args.PlaceholderText(L"optional");
+  args.HorizontalAlignment(HorizontalAlignment::Stretch);
   args.Text(to_hstring(item.args));
   // LostFocus, not TextChanged: persisting per keystroke writes the whole
   // settings file for every character typed
@@ -137,10 +196,11 @@ UIElement LaunchersPage::BuildItemRow(
       AppModel::Get().Save();
     }
   });
-  row.Children().Append(args);
 
   NumberBox delay;
-  delay.PlaceholderText(L"Delay (s)");
+  delay.Header(box_value(L"Delay (s)"));
+  delay.SpinButtonPlacementMode(NumberBoxSpinButtonPlacementMode::Compact);
+  delay.MinWidth(116);
   delay.Minimum(0);
   delay.Maximum(600);
   delay.Value(item.delayAfterSeconds);
@@ -154,45 +214,56 @@ UIElement LaunchersPage::BuildItemRow(
       = std::isnan(value) ? 0 : static_cast<int>(value);
     AppModel::Get().Save();
   });
-  row.Children().Append(delay);
 
-  const auto moveItem = [this, launcherId, itemIndex](int direction) {
-    auto* launcher = LauncherById(launcherId);
-    const auto target = static_cast<int>(itemIndex) + direction;
-    if (
-      !launcher || target < 0
-      || target >= static_cast<int>(launcher->items.size())) {
-      return;
-    }
-    std::swap(launcher->items.at(itemIndex), launcher->items.at(target));
-    AppModel::Get().Save();
-    RebuildList();
-  };
+  Grid bottomRow;
+  bottomRow.ColumnSpacing(8);
+  bottomRow.ColumnDefinitions().Append(starColumn());
+  bottomRow.ColumnDefinitions().Append(autoColumn());
+  bottomRow.ColumnDefinitions().Append(autoColumn());
+  Grid::SetColumn(args, 0);
+  Grid::SetColumn(delay, 1);
+  bottomRow.Children().Append(args);
+  bottomRow.Children().Append(delay);
 
-  // Fluent glyphs by codepoint; a literal arrow character here depends on
-  // the compiler's source-charset guess. Icon-only in this dense row, with
-  // the label preserved as a tooltip.
-  auto up = Ui::IconOnlyButton(L"\uE70E", L"Move up");
-  up.Click([moveItem](auto&&, auto&&) { moveItem(-1); });
-  row.Children().Append(up);
+  // Auto-start-tracking toggle, shown only for apps that expose a start button
+  // (e.g. OpenTrack, AITrack). Bottom-aligned to sit on the input baseline.
+  const auto& catalog = AppModel::Get().catalog;
+  const auto appIt = std::ranges::find_if(
+    catalog, [&](const auto& a) { return a.id == item.appId; });
+  if (appIt != catalog.end() && !appIt->startTrackingButton.empty()) {
+    CheckBox track;
+    track.Content(box_value(L"Start tracking"));
+    track.VerticalAlignment(VerticalAlignment::Bottom);
+    track.Margin({0, 0, 0, 6});
+    // Set state before wiring events so this doesn't trigger a spurious save
+    track.IsChecked(item.startTracking);
+    const auto setTracking = [launcherId, itemIndex](bool on) {
+      auto* launcher = LauncherById(launcherId);
+      if (!launcher || itemIndex >= launcher->items.size()) {
+        return;
+      }
+      launcher->items.at(itemIndex).startTracking = on;
+      AppModel::Get().Save();
+    };
+    track.Checked([setTracking](auto&&, auto&&) { setTracking(true); });
+    track.Unchecked([setTracking](auto&&, auto&&) { setTracking(false); });
+    Grid::SetColumn(track, 2);
+    bottomRow.Children().Append(track);
+  }
 
-  auto down = Ui::IconOnlyButton(L"\uE70D", L"Move down");
-  down.Click([moveItem](auto&&, auto&&) { moveItem(1); });
-  row.Children().Append(down);
+  StackPanel content;
+  content.Spacing(8);
+  content.Children().Append(topRow);
+  content.Children().Append(bottomRow);
 
-  auto remove = Ui::IconOnlyButton(L"\uE738", L"Remove");
-  remove.Click([this, launcherId, itemIndex](auto&&, auto&&) {
-    auto* launcher = LauncherById(launcherId);
-    if (!launcher || itemIndex >= launcher->items.size()) {
-      return;
-    }
-    launcher->items.erase(launcher->items.begin() + itemIndex);
-    AppModel::Get().Save();
-    RebuildList();
-  });
-  row.Children().Append(remove);
-
-  return row;
+  // Its own subtle sub-card so items read as distinct blocks in the list
+  Border container;
+  container.Padding({12, 10, 12, 10});
+  container.CornerRadius({4, 4, 4, 4});
+  container.Background(Ui::LookupResource<Media::Brush>(
+    L"CardBackgroundFillColorSecondaryBrush"));
+  container.Child(content);
+  return container;
 }
 
 UIElement LaunchersPage::BuildCard(const std::string& launcherId) {
@@ -204,8 +275,7 @@ UIElement LaunchersPage::BuildCard(const std::string& launcherId) {
 
   TextBox name;
   name.Header(box_value(L"Name"));
-  name.MaxWidth(320);
-  name.HorizontalAlignment(HorizontalAlignment::Left);
+  name.HorizontalAlignment(HorizontalAlignment::Stretch);
   name.Text(to_hstring(launcher->name));
   name.LostFocus([launcherId](auto&& sender, auto&&) {
     auto* launcher = LauncherById(launcherId);
@@ -279,15 +349,24 @@ UIElement LaunchersPage::BuildCard(const std::string& launcherId) {
     [this, launcherId](auto&&, auto&&) { LaunchClicked(launcherId); });
   actions.Children().Append(launch);
 
-  auto shortcut = Ui::IconButton(L"\uE718", L"Create Start Menu shortcut");
-  shortcut.Click([this, launcherId](auto&&, auto&&) {
-    if (const auto* launcher = LauncherById(launcherId)) {
-      if (const auto result
-          = CreateStartMenuShortcut(launcher->name, launcher->id);
-          !result) {
-        Ui::ShowError(ErrorBar(), result.error());
-      }
+  const bool hasShortcut = StartMenuShortcutExists(launcher->name);
+  auto shortcut = Ui::IconButton(
+    hasShortcut ? L"\uE77A" : L"\uE718",
+    hasShortcut ? L"Remove Start Menu shortcut"
+                : L"Add Start Menu shortcut");
+  shortcut.Click([this, launcherId, hasShortcut](auto&&, auto&&) {
+    const auto* launcher = LauncherById(launcherId);
+    if (!launcher) {
+      return;
     }
+    const auto result = hasShortcut
+      ? RemoveStartMenuShortcut(launcher->name)
+      : CreateStartMenuShortcut(launcher->name, launcher->id);
+    if (!result) {
+      Ui::ShowError(ErrorBar(), result.error());
+      return;
+    }
+    RebuildList();  // refresh the button to reflect the new state
   });
   actions.Children().Append(shortcut);
 

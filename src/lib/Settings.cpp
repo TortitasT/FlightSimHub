@@ -19,6 +19,7 @@ void to_json(nlohmann::json& json, const LauncherItem& item) {
     {"appId", item.appId},
     {"args", item.args},
     {"delayAfterSeconds", item.delayAfterSeconds},
+    {"startTracking", item.startTracking},
   };
 }
 
@@ -26,6 +27,7 @@ void from_json(const nlohmann::json& json, LauncherItem& item) {
   item.appId = json.at("appId");
   item.args = json.value("args", "");
   item.delayAfterSeconds = json.value("delayAfterSeconds", 3);
+  item.startTracking = json.value("startTracking", true);
 }
 
 void to_json(nlohmann::json& json, const Launcher& launcher) {

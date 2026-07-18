@@ -41,6 +41,20 @@ struct AppDefinition {
   AppKind kind {AppKind::Companion};
   Detection detection;
   Source source;
+  // Companions only: which Environment section this app belongs under — a sim's
+  // id (e.g. "falcon-bms") for sim-specific tools, or "general" for cross-sim
+  // tools. Empty is treated as "general". Sims form their own section.
+  std::string group;
+  // Companions only: the accessible name (prefix) of the app's "start tracking"
+  // button, e.g. "Start". When set, the app supports auto-starting tracking on
+  // launch: the engine invokes that button via UI Automation. Empty means the
+  // app has no such capability.
+  std::string startTrackingButton;
+  // Sims only: when the launched exe is a launcher that spawns the game as a
+  // separate process, the game's process name (e.g. "Falcon BMS.exe"). The
+  // engine monitors this process, not the launcher, to detect the game
+  // closing. Empty means the launched process is the game itself.
+  std::string gameProcessName;
 };
 
 // Throws std::runtime_error naming the offending entry and field.

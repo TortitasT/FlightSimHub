@@ -11,7 +11,11 @@ std::vector<AppDefinition> Catalog() {
   return {
     {.id = "falcon-bms", .name = "Falcon BMS", .exeName = "Falcon BMS.exe", .kind = AppKind::Sim},
     {.id = "dcs", .name = "DCS World", .exeName = "DCS.exe", .kind = AppKind::Sim},
-    {.id = "opentrack", .name = "OpenTrack", .exeName = "opentrack.exe", .kind = AppKind::Companion},
+    {.id = "opentrack",
+     .name = "OpenTrack",
+     .exeName = "opentrack.exe",
+     .kind = AppKind::Companion,
+     .startTrackingButton = "Start"},
   };
 }
 
@@ -51,6 +55,29 @@ TEST_CASE("BuildLaunchPlan resolves paths, args and sim flag", "[LaunchPlan]") {
 
   CHECK(plan->at(1).appId == "falcon-bms");
   CHECK(plan->at(1).isSim);
+}
+
+TEST_CASE(
+  "BuildLaunchPlan sets the start-tracking button when enabled", "[LaunchPlan]") {
+  auto launcher = ValidLauncher();
+  // items: opentrack (companion), falcon-bms (sim)
+  launcher.items.at(0).startTracking = true;
+
+  SECTION("propagated for a supported, enabled companion") {
+    const auto plan = BuildLaunchPlan(launcher, Catalog(), AllFound());
+    REQUIRE(plan.has_value());
+    CHECK(plan->at(0).appId == "opentrack");
+    CHECK(plan->at(0).startTrackingButton == "Start");
+    // The sim never gets a start-tracking button.
+    CHECK(plan->at(1).startTrackingButton.empty());
+  }
+
+  SECTION("omitted when the toggle is off") {
+    launcher.items.at(0).startTracking = false;
+    const auto plan = BuildLaunchPlan(launcher, Catalog(), AllFound());
+    REQUIRE(plan.has_value());
+    CHECK(plan->at(0).startTrackingButton.empty());
+  }
 }
 
 TEST_CASE("BuildLaunchPlan rejects unknown app id", "[LaunchPlan]") {

@@ -4,6 +4,7 @@
     "name": "DCS World",
     "kind": "sim",
     "exeName": "DCS.exe",
+    "gameProcessName": "DCS.exe",
     "detection": {
       "registryKeys": [
         {
@@ -33,23 +34,24 @@
     "id": "falcon-bms",
     "name": "Falcon BMS",
     "kind": "sim",
-    "exeName": "Falcon BMS.exe",
+    "exeName": "FalconBMS_Alternative_Launcher.exe",
+    "gameProcessName": "Falcon BMS.exe",
     "detection": {
       "registryKeys": [
         {
           "root": "HKLM",
           "path": "SOFTWARE\\WOW6432Node\\Benchmark Sims\\Falcon BMS 4.38",
           "value": "baseDir",
-          "append": "Bin/x64/Falcon BMS.exe"
+          "append": "Launcher/FalconBMS_Alternative_Launcher.exe"
         },
         {
           "root": "HKLM",
           "path": "SOFTWARE\\WOW6432Node\\Benchmark Sims\\Falcon BMS 4.37",
           "value": "baseDir",
-          "append": "Bin/x64/Falcon BMS.exe"
+          "append": "Launcher/FalconBMS_Alternative_Launcher.exe"
         }
       ],
-      "steamRelativeExe": "Falcon BMS 4.37/Bin/x64/Falcon BMS.exe"
+      "steamRelativeExe": "Falcon BMS 4.37/Launcher/FalconBMS_Alternative_Launcher.exe"
     },
     "source": {
       "type": "manual",
@@ -57,9 +59,32 @@
     }
   },
   {
+    "id": "il2",
+    "name": "IL-2 Sturmovik: Great Battles",
+    "kind": "sim",
+    "exeName": "Il-2.exe",
+    "gameProcessName": "Il-2.exe",
+    "detection": {
+      "registryKeys": [
+        {
+          "root": "HKLM",
+          "path": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Steam App 307960",
+          "value": "InstallLocation",
+          "append": "bin/game/Il-2.exe"
+        }
+      ],
+      "steamRelativeExe": "IL-2 Sturmovik Battle of Stalingrad/bin/game/Il-2.exe"
+    },
+    "source": {
+      "type": "manual",
+      "homepage": "https://il2sturmovik.com/"
+    }
+  },
+  {
     "id": "freeopenkneeboard",
     "name": "FreeOpenKneeboard",
     "kind": "companion",
+    "group": "general",
     "exeName": "OpenKneeboardApp.exe",
     "detection": {
       "registryKeys": [
@@ -85,6 +110,8 @@
     "id": "aitrack",
     "name": "AITrack",
     "kind": "companion",
+    "group": "general",
+    "startTrackingButton": "Start",
     "exeName": "AITrack.exe",
     "detection": {},
     "source": {
@@ -98,6 +125,8 @@
     "id": "opentrack",
     "name": "OpenTrack",
     "kind": "companion",
+    "group": "general",
+    "startTrackingButton": "Start",
     "exeName": "opentrack.exe",
     "detection": {
       "registryKeys": [
@@ -123,6 +152,7 @@
     "id": "wdp",
     "name": "Weapons Delivery Planner",
     "kind": "companion",
+    "group": "falcon-bms",
     "exeName": "WDP.exe",
     "detection": {
       "wellKnownPaths": [
@@ -138,6 +168,7 @@
     "id": "ezboards",
     "name": "EzBoards",
     "kind": "companion",
+    "group": "falcon-bms",
     "exeName": "EzBoards.exe",
     "detection": {},
     "source": {

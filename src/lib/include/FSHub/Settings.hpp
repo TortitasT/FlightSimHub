@@ -13,6 +13,9 @@ struct LauncherItem {
   std::string appId;
   std::string args;
   int delayAfterSeconds {3};
+  // For apps that support it (see AppDefinition::startTrackingButton): invoke
+  // their start-tracking button once they launch. Ignored for other apps.
+  bool startTracking {true};
 };
 
 struct Launcher {

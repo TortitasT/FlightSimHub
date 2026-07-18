@@ -32,4 +32,5 @@ target_link_libraries(
   Ole32
   OleAut32
   User32
+  Uuid
 )

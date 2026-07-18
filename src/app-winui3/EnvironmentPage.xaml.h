@@ -16,6 +16,7 @@ struct EnvironmentPage : EnvironmentPageT<EnvironmentPage> {
 
  private:
   void RebuildList();
+  Microsoft::UI::Xaml::UIElement BuildSectionHeader(const winrt::hstring& title);
   Microsoft::UI::Xaml::UIElement BuildRow(const std::string& appId);
   fire_and_forget InstallClicked(std::string appId);
   void LocateClicked(const std::string& appId);

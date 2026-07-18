@@ -4,6 +4,7 @@
 #include <catch2/matchers/catch_matchers_string.hpp>
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <fstream>
 
 using namespace FSHub;
@@ -76,6 +77,8 @@ TEST_CASE("ParseCatalog parses every field", "[Catalog]") {
   CHECK(bms.source.homepage == "https://www.falcon-bms.com/downloads/");
   CHECK(bms.source.installKind == InstallKind::None);
 
+  CHECK(bms.gameProcessName.empty());
+
   const auto& ot = apps.at(1);
   CHECK(ot.kind == AppKind::Companion);
   CHECK(ot.detection.registryKeys.empty());
@@ -111,10 +114,11 @@ TEST_CASE("Shipped catalog parses with expected entries", "[Catalog]") {
   REQUIRE(file.good());
   const auto apps = ParseCatalog(nlohmann::json::parse(file));
 
-  REQUIRE(apps.size() == 7);
+  REQUIRE(apps.size() == 8);
   const std::vector<std::string> expectedIds {
     "dcs",
     "falcon-bms",
+    "il2",
     "freeopenkneeboard",
     "aitrack",
     "opentrack",
@@ -142,5 +146,81 @@ TEST_CASE("Shipped catalog parses with expected entries", "[Catalog]") {
       CHECK(app.source.installKind == InstallKind::Portable);
     }
   }
-  CHECK(simCount == 2);
+  CHECK(simCount == 3);
+}
+
+TEST_CASE("Shipped sims open a launcher and monitor the game process",
+          "[Catalog]") {
+  std::ifstream file(FSHUB_TEST_DATA_DIR "/catalog.json");
+  REQUIRE(file.good());
+  const auto apps = ParseCatalog(nlohmann::json::parse(file));
+
+  const auto find = [&](const std::string& id) {
+    return std::ranges::find_if(apps, [&](const auto& a) { return a.id == id; });
+  };
+
+  const auto dcs = find("dcs");
+  REQUIRE(dcs != apps.end());
+  CHECK(dcs->gameProcessName == "DCS.exe");
+
+  const auto il2 = find("il2");
+  REQUIRE(il2 != apps.end());
+  CHECK(il2->kind == AppKind::Sim);
+  CHECK(il2->gameProcessName == "Il-2.exe");
+  REQUIRE(il2->detection.steamRelativeExe.has_value());
+
+  const auto bms = find("falcon-bms");
+  REQUIRE(bms != apps.end());
+  // BMS launches the Alternative Launcher, not the game binary directly.
+  CHECK(bms->exeName == "FalconBMS_Alternative_Launcher.exe");
+  CHECK(bms->gameProcessName == "Falcon BMS.exe");
+  REQUIRE_FALSE(bms->detection.registryKeys.empty());
+  CHECK(
+    bms->detection.registryKeys.at(0).append
+    == "Launcher/FalconBMS_Alternative_Launcher.exe");
+  REQUIRE(bms->detection.steamRelativeExe.has_value());
+  CHECK(
+    *bms->detection.steamRelativeExe
+    == "Falcon BMS 4.37/Launcher/FalconBMS_Alternative_Launcher.exe");
+}
+
+TEST_CASE("Shipped companions are grouped into Environment sections",
+          "[Catalog]") {
+  std::ifstream file(FSHUB_TEST_DATA_DIR "/catalog.json");
+  REQUIRE(file.good());
+  const auto apps = ParseCatalog(nlohmann::json::parse(file));
+
+  const auto groupOf = [&](const std::string& id) {
+    const auto it
+      = std::ranges::find_if(apps, [&](const auto& a) { return a.id == id; });
+    REQUIRE(it != apps.end());
+    return it->group;
+  };
+
+  // Cross-sim tools live under the General section.
+  CHECK(groupOf("freeopenkneeboard") == "general");
+  CHECK(groupOf("opentrack") == "general");
+  CHECK(groupOf("aitrack") == "general");
+  // Sim-specific tools live under their sim's section.
+  CHECK(groupOf("wdp") == "falcon-bms");
+  CHECK(groupOf("ezboards") == "falcon-bms");
+}
+
+TEST_CASE("Head trackers advertise a start-tracking button", "[Catalog]") {
+  std::ifstream file(FSHUB_TEST_DATA_DIR "/catalog.json");
+  REQUIRE(file.good());
+  const auto apps = ParseCatalog(nlohmann::json::parse(file));
+
+  const auto btn = [&](const std::string& id) {
+    const auto it
+      = std::ranges::find_if(apps, [&](const auto& a) { return a.id == id; });
+    REQUIRE(it != apps.end());
+    return it->startTrackingButton;
+  };
+
+  CHECK(btn("opentrack") == "Start");
+  CHECK(btn("aitrack") == "Start");
+  // Apps without the capability leave it empty.
+  CHECK(btn("dcs").empty());
+  CHECK(btn("freeopenkneeboard").empty());
 }
